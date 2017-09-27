@@ -1,0 +1,418 @@
+package com.bswe;
+
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.viewport.StretchViewport;
+
+import org.jasypt.util.password.StrongPasswordEncryptor;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.ListIterator;
+
+import org.jasypt.util.text.BasicTextEncryptor;
+import org.jasypt.util.text.StrongTextEncryptor;
+import org.lwjgl.openal.AL;
+
+// object to hold account info
+class Account {
+	String Name, UserName, Password;
+
+	public Account (String name, String UN, String PW) {
+		Name = name;
+		UserName = UN;
+		Password = PW;
+		}
+ 	}
+
+// comparator for sorting accounts by their name
+class AccountComparator implements Comparator<Account>{
+	@Override
+	public int compare (Account a1, Account a2) {
+		return a1.Name.compareToIgnoreCase(a2.Name);
+		}
+	}
+
+// Main application class
+public class pWallet extends ApplicationAdapter {
+	public static final int SCREEN_WIDTH = 400;
+	public static final int SCREEN_HEIGHT = 660;
+	private static final String PASSWORD_KEY = "p";
+	private static final String NUMBER_OF_ACCOUNTS_KEY = "noa";
+
+	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED}
+	private enum NewAccountStates {WAITING, NAME_ENTERED, USERNAME_ENTERED, PASSWORD_ENTERED}
+
+	private static final String TAG = pWallet.class.getName();
+
+	private String inputPassword = "";
+	private String accountName = "";
+	private String userName = "";
+	private String accountPassword = "";
+
+	private AppStates appState = AppStates.PW_REQUIRED;
+	private NewAccountStates newAccountState = NewAccountStates.WAITING;
+
+	private Pixmap pixmap;
+	private Skin skin;
+	private Stage stage;
+
+	private Table scrollTable;
+
+	private List<Account> accounts = new ArrayList<Account>();
+
+	private int numberOfAccounts;
+
+	private BasicTextEncryptor textEncryptor;
+
+	/*
+	List<Account> accounts = new ArrayList<Account>(Arrays.asList (
+					new Account ("Netflixa", "mindspring", "Simba348"),
+					new Account ("Netflixb", "mindspring", "Simba348"),
+					new Account ("Netflixc", "mindspring", "Simba348"),
+					new Account ("Netflixg", "mindspring", "Simba348"),
+					new Account ("Netflixh", "mindspring", "Simba348"),
+					new Account ("Netflixi", "mindspring", "Simba348"),
+					new Account ("Netflixj", "mindspringyomama", "Simba348"),
+					new Account ("Netflixk", "mindspring", "Simba348"),
+					new Account ("Chase", "gmail", "Simba348"),
+					new Account ("Netflixl", "mindspring", "Simba348"),
+					new Account ("Netflixm", "mindspring", "Simba348"),
+					new Account ("Netflixn", "mindspring", "Simba348"),
+					new Account ("Netflixo", "mindspring", "Simba348"),
+					new Account ("Netflixp", "mindspring", "Simba348"),
+					new Account ("Netflixq", "mindspring", "Simba348"),
+					new Account ("Netflixd", "mindspring", "Simba348"),
+					new Account ("Netflixe", "mindspring", "Simba348"),
+					new Account ("Netflixf", "mindspring", "Simba348"),
+					new Account ("Netflixr", "mindspring", "Simba348"),
+					new Account ("Netflixs", "mindspring", "Simba348"),
+					new Account ("Netflixt", "mindspring", "Simba348"),
+					new Account ("Netflixu", "mindspring", "Simba348"),
+					new Account ("Netflixv", "mindspring", "Simba348"),
+					new Account ("Mindspring", "wcbwcb", "Yomama348")));
+	 */
+
+	private Preferences prefs;
+
+
+	@Override
+	public void create () {
+		// display password entry dialog
+		DisplayPasswordDialog("");
+
+		// init preferences for persistent storage
+		prefs = Gdx.app.getPreferences("My Preferences");
+
+		textEncryptor = new BasicTextEncryptor();
+
+		skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
+		stage = new Stage();
+		stage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
+
+		/* TODO:  test code to be removed
+		boolean isExtAvailable = Gdx.files.isExternalStorageAvailable();
+		Gdx.app.log(TAG, "create: is external storage available = " + isExtAvailable);
+		String extRoot = Gdx.files.getExternalStoragePath();
+		Gdx.app.log(TAG, "create: external storage path root = " + extRoot);
+		//FileHandle file = Gdx.files.external("MyTestFile");
+		//file.writeString("My god, it's full of stars", false);
+		FileHandle file = Gdx.files.external("Download/My Preferences");
+		String text = file.readString();
+		Gdx.app.log(TAG, "create: text read = " + text);
+		*/
+		}
+
+
+	@Override
+	public void render () {
+		Gdx.gl.glClearColor (0, 0, 0, 1);
+		Gdx.gl.glClear (GL20.GL_COLOR_BUFFER_BIT);
+
+		if (appState == AppStates.PW_PASSED)
+			Initialize();
+		stage.getViewport().apply();
+		stage.act (Gdx.graphics.getDeltaTime());
+		stage.draw();
+		if (newAccountState != NewAccountStates.WAITING)
+			// go check on new account input
+			AddNewAccount ();
+		}
+
+
+	@Override
+	public void resize (int width, int height) {
+		Gdx.app.log (TAG, "resize: w=" + width + ", h=" + height);
+		stage.getViewport().update (width, height, true);
+		}
+
+
+	@Override
+	public void dispose () {
+		Gdx.app.log (TAG, "dispose:");
+		stage.dispose();
+		skin.dispose();
+		if (Gdx.app.getClass().getName().endsWith ("LwjglApplication"))
+			AL.destroy();
+			System.exit(0);
+		}
+
+
+	// load accounts from persistent memory
+	private void LoadAccounts () {
+		for (int i=1; i <= numberOfAccounts; i++) {
+			String key = Integer.toString(i) + "-";
+			String name = prefs.getString(key+"0", "");
+			//Gdx.app.log (TAG, "LoadAccounts: ename=(" + ename + ")");
+			name = textEncryptor.decrypt(name);
+			String userName = prefs.getString(key+"1", "");
+			userName = textEncryptor.decrypt(userName);
+			String password = prefs.getString(key+"2", "");
+			password = textEncryptor.decrypt(password);
+			Account a = new Account(name, userName, password);
+			accounts.add(a);
+			}
+		}
+
+
+	private void DisplayPasswordDialog (String msg) {
+		Gdx.input.getTextInput (new Input.TextInputListener() {
+			@Override
+			public void input (String text) {
+				inputPassword = text;
+				Gdx.app.log (TAG, "Password getTextInput: password=(" + inputPassword + ")");
+				CheckPassword();
+			}
+
+			@Override
+			public void canceled () {
+				inputPassword = "canceled by user";
+			}
+		}, msg+"enter password", "", "");
+	}
+
+
+	private void PersistAccount (Account a) {
+		String encryptedText;
+		String key = Integer.toString(++numberOfAccounts) + "-";
+		//Gdx.app.log (TAG, "PersistAccount: key=(" + key + ")");
+		encryptedText = textEncryptor.encrypt (a.Name);
+		prefs.putString(key+"0", encryptedText);
+		encryptedText = textEncryptor.encrypt (a.UserName);
+		prefs.putString(key+"1", encryptedText);
+		encryptedText = textEncryptor.encrypt (a.Password);
+		prefs.putString(key+"2", encryptedText);
+		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
+		prefs.flush();
+	}
+
+
+	private void AddNewAccount () {
+		// save state for use here and reset global to wait for next state
+		NewAccountStates state = newAccountState;
+		newAccountState = NewAccountStates.WAITING;
+		switch (state) {
+			case NAME_ENTERED:
+				if (accountName.equals(""))
+					return;
+				Gdx.app.log (TAG, "addNewAccount: name=(" + accountName + ")");
+				// check for account name being unique
+				for (Account a: accounts) {
+					if (a.Name.equals(accountName)) {
+						Dialog errorDialog = new Dialog("Error", skin);
+						errorDialog.text("Account with the name (" + accountName + ") already exists");
+						errorDialog.button("OK", skin);
+						errorDialog.show(stage);
+						return;
+						}
+					}
+				// prompt user for account username
+				Gdx.input.getTextInput (new Input.TextInputListener() {
+					@Override
+					public void input (String text) {
+						Gdx.app.log (TAG, "TextInputListener: username=" + text);
+						userName = text;
+						newAccountState = NewAccountStates.USERNAME_ENTERED;
+						}
+
+					@Override
+					public void canceled() {
+						userName = "";
+						newAccountState = NewAccountStates.USERNAME_ENTERED;
+						}
+					}, "enter username", "", "");
+				return;
+			case USERNAME_ENTERED:
+				if (userName.equals(""))
+					return;
+				Gdx.app.log (TAG, "addNewAccount: username=(" + userName + ")");
+				// prompt user for account password
+				Gdx.input.getTextInput (new Input.TextInputListener() {
+					@Override
+					public void input (String text) {
+						Gdx.app.log (TAG, "TextInputListener: account password=" + text);
+						accountPassword = text;
+						newAccountState = NewAccountStates.PASSWORD_ENTERED;
+						}
+
+					@Override
+					public void canceled () {
+						accountPassword = "";
+						newAccountState = NewAccountStates.PASSWORD_ENTERED;
+						}
+					}, "enter account password", "", "");
+				return;
+			case PASSWORD_ENTERED:
+				if (accountPassword.equals(""))
+					return;
+			}
+		Gdx.app.log (TAG, "AddNewAccount: (an=" + accountName + ", un=" + userName + ", pw=" + accountPassword + ")");
+		Account a = new Account(accountName, userName, accountPassword);
+		PersistAccount(a);
+		accounts.add(a);
+		Collections.sort (accounts, new AccountComparator());
+		scrollTable.remove();
+		AddAccountsTable();
+		}
+
+
+	private void AddAccountsTable () {
+		// add scrollable accounts table to stage
+		Table table = new Table();
+		for (Account a: accounts) {
+			final TextButton button = new TextButton (a.Name, skin);
+			table.add (button).align(Align.right);
+			final Label UnText = new Label(a.UserName, skin);
+			table.add (UnText).align(Align.left).pad(10);
+			final Label PwText = new Label(a.Password, skin);
+			table.add (PwText).align(Align.left);
+			table.row();
+			}
+		ScrollPane scroller = new ScrollPane (table);
+		scrollTable = new Table(skin);
+		scrollTable.setBounds(0, 40, SCREEN_WIDTH, SCREEN_HEIGHT-40);
+		scrollTable.align(Align.left);
+		scrollTable.add (scroller);
+		scrollTable.setBackground(new TextureRegionDrawable(new TextureRegion(new Texture(pixmap))));
+		//sTable.debugAll();
+		stage.addActor (scrollTable);
+		}
+
+
+	private void Initialize () {
+		// check preferences for any accounts
+		if (prefs.contains(NUMBER_OF_ACCOUNTS_KEY)) {
+			// load any persisted accounts
+			numberOfAccounts = prefs.getInteger(NUMBER_OF_ACCOUNTS_KEY);
+			LoadAccounts();
+		}
+		else {
+			// no accounts persisted yet so initilize the key
+			numberOfAccounts = 0;
+			prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
+		}
+
+		// password matched, so show the accounts and buttons
+		pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
+		pixmap.setColor(Color.SALMON);
+		pixmap.fill();
+
+		Collections.sort (accounts, new AccountComparator());
+
+		AddAccountsTable();
+
+		// create the "Add Account" button
+		final TextButton button = new TextButton ("Add Account", skin, "default");
+		button.setWidth (100);
+		button.setHeight (40);
+		button.addListener (new ClickListener() {
+			@Override
+			public void clicked(InputEvent event, float x, float y) {
+				Gdx.input.getTextInput (new Input.TextInputListener() {
+					@Override
+					public void input (String text) {
+						Gdx.app.log (TAG, "TextInputListener: account name=" + text);
+						accountName = text;
+						newAccountState = NewAccountStates.NAME_ENTERED;
+						}
+
+					@Override
+					public void canceled() {
+						accountName = "";
+						newAccountState = NewAccountStates.NAME_ENTERED;
+						}
+					}, "enter account name", "", "");
+				}
+			});
+		button.setPosition(SCREEN_WIDTH/2-50, 0);
+		stage.addActor (button);
+
+		Gdx.input.setInputProcessor (stage);
+		appState = AppStates.INITILIZED;
+		}
+
+
+	private void CheckPassword () {
+		StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor ();
+		String savedPassword = prefs.getString(PASSWORD_KEY, "Not stored");
+		Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
+		try {
+			if (savedPassword.equals("Not stored")) {
+				// initialize the app to this new password
+				String encryptedPassword = passwordEncryptor.encryptPassword(inputPassword);
+				Gdx.app.log(TAG, "CheckPassword: new encrypted password=(" + inputPassword +
+							" - " + encryptedPassword + ")");
+				prefs.putString(PASSWORD_KEY, encryptedPassword);
+				prefs.flush();
+				appState = AppStates.PW_PASSED;
+				// TODO: make this password more robust
+				textEncryptor.setPassword(inputPassword);
+				return;
+				}
+			else if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
+				Gdx.app.log(TAG, "CheckPassword: password passed");
+				appState = AppStates.PW_PASSED;
+				textEncryptor.setPassword(inputPassword);
+				return;
+				}
+			else {
+				Gdx.app.log(TAG, "CheckPassword: password failed)");
+				}
+			}
+		catch (Exception e) {
+			Gdx.app.log(TAG, "CheckPassword: password failed - exception caught)");
+			}
+		// if we get here the password failed so indicate this and prompt again
+		final Label text = new Label("Incorrect Password", skin);
+		text.setColor(Color.RED);
+		text.setPosition(100, 200);
+		text.setFontScale(2, 2);
+		stage.addActor(text);
+		DisplayPasswordDialog("Incorrect password: re-");
+		}
+
+	}
