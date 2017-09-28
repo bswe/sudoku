@@ -41,8 +41,10 @@ import org.lwjgl.openal.AL;
 // object to hold account info
 class Account {
 	String Name, UserName, Password;
+	Integer PersistenceIndex;
 
-	public Account (String name, String UN, String PW) {
+	public Account (Integer index, String name, String UN, String PW) {
+		PersistenceIndex = index;
 		Name = name;
 		UserName = UN;
 		Password = PW;
@@ -73,6 +75,10 @@ public class pWallet extends ApplicationAdapter {
 	private String accountName = "";
 	private String userName = "";
 	private String accountPassword = "";
+
+	TextField nameTextField;
+	TextField usernameTextField;
+	TextField passwordTextField;
 
 	private AppStates appState = AppStates.PW_REQUIRED;
 	private NewAccountStates newAccountState = NewAccountStates.WAITING;
@@ -193,7 +199,7 @@ public class pWallet extends ApplicationAdapter {
 			userName = textEncryptor.decrypt(userName);
 			String password = prefs.getString(key+"2", "");
 			password = textEncryptor.decrypt(password);
-			Account a = new Account(name, userName, password);
+			Account a = new Account(i, name, userName, password);
 			accounts.add(a);
 			}
 		}
@@ -216,9 +222,9 @@ public class pWallet extends ApplicationAdapter {
 		}
 
 
-	private void PersistAccount (Account a, int n) {
+	private void PersistAccount (Account a) {
 		String encryptedText;
-		String key = Integer.toString(n) + "-";
+		String key = Integer.toString(a.PersistenceIndex) + "-";
 		//Gdx.app.log (TAG, "PersistAccount: key=(" + key + ")");
 		encryptedText = textEncryptor.encrypt (a.Name);
 		prefs.putString(key+"0", encryptedText);
@@ -229,6 +235,35 @@ public class pWallet extends ApplicationAdapter {
 		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
 		prefs.flush();
 	}
+
+
+	private void UnPersistAllAccounts () {
+		for (Account a : accounts) {
+			String key = Integer.toString(a.PersistenceIndex) + "-";
+			prefs.remove(key + "0");
+			prefs.remove(key + "1");
+			prefs.remove(key + "2");
+		}
+		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, 0);
+		prefs.flush();
+	}
+
+
+	private void PersistAllAccounts () {
+		Integer i = 0;
+		for (Account a : accounts) {
+			a.PersistenceIndex = ++i;
+			PersistAccount(a);
+			}
+		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, i);
+		prefs.flush();
+	}
+
+
+	private void RedisplayAccountsTable() {
+		scrollTable.remove();
+		AddAccountsTable();
+		}
 
 
 	private void AddNewAccount () {
@@ -291,20 +326,92 @@ public class pWallet extends ApplicationAdapter {
 					return;
 			}
 		Gdx.app.log (TAG, "AddNewAccount: (an=" + accountName + ", un=" + userName + ", pw=" + accountPassword + ")");
-		Account a = new Account(accountName, userName, accountPassword);
-		PersistAccount(a, ++numberOfAccounts);
+		Account a = new Account(++numberOfAccounts, accountName, userName, accountPassword);
+		PersistAccount(a);
 		accounts.add(a);
-		Collections.sort (accounts, new AccountComparator());
-		scrollTable.remove();
-		AddAccountsTable();
+		RedisplayAccountsTable();
+		}
+
+
+	private void ChangeAccount (String accountName, String newName, String newUsername, String newPassword) {
+		for (Account a : accounts)
+			if (a.Name.equals (accountName)) {
+				a.Name = newName;
+				a.UserName = newUsername;
+				a.Password = newPassword;
+				PersistAccount (a);
+				}
+		RedisplayAccountsTable();
+		}
+
+
+	private void DeleteAccount (String accountName) {
+		for (Account a : accounts)
+			if (a.Name.equals (accountName)) {
+				UnPersistAllAccounts();
+				accounts.remove (a);
+				PersistAllAccounts();
+				break;
+				}
+		RedisplayAccountsTable();
+		}
+
+
+	private void EditAccount (String accountName) {
+		final String AccountName = accountName;
+		Gdx.app.log (TAG, "EditAccount: account name = " + accountName);
+		for (Account a : accounts)
+			if (a.Name.equals (accountName)) {
+				nameTextField = new TextField(a.Name, skin);
+				usernameTextField = new TextField(a.UserName, skin);
+				passwordTextField = new TextField(a.Password, skin);
+				Table table = new Table (skin);
+				table.add ("Name ").align(Align.right);
+				table.add (nameTextField);
+				table.row();
+				table.add ("Username ").align(Align.right);
+				table.add (usernameTextField);
+				table.row();
+				table.add ("Password ").align(Align.right);
+				table.add (passwordTextField);
+				Dialog editDialog = new Dialog ("Edit Account Information", skin) {
+					protected void result (Object object) {
+						Gdx.app.log (TAG, "EditAccount dialog: chosen = " + object);
+						if (object.equals("cancel"))
+							return;
+						//Gdx.app.log (TAG, "editDialog dialog: name = " + nameTextField.getText());
+						if (object.equals("change"))
+							ChangeAccount (AccountName,
+										   nameTextField.getText(),
+										   usernameTextField.getText(),
+										   passwordTextField.getText());
+						else
+							DeleteAccount (AccountName);
+						}
+					};
+				editDialog.getContentTable().add(table);
+				editDialog.button("Delete", "delete");
+				editDialog.button("Change", "change");
+				editDialog.button("Cancel", "cancel");
+				editDialog.show(stage);
+				}
 		}
 
 
 	private void AddAccountsTable () {
+		// first make sure accounts are ordered alphabetically by account name
+		Collections.sort (accounts, new AccountComparator());
 		// add scrollable accounts table to stage
 		Table table = new Table();
 		for (Account a: accounts) {
 			final TextButton button = new TextButton (a.Name, skin);
+			final String name = a.Name;
+			button.addListener (new ClickListener() {
+				@Override
+				public void clicked(InputEvent event, float x, float y) {
+					EditAccount (name);
+					}
+				});
 			table.add (button).align(Align.right);
 			final Label UnText = new Label(a.UserName, skin);
 			table.add (UnText).align(Align.left).pad(10);
@@ -340,8 +447,6 @@ public class pWallet extends ApplicationAdapter {
 		pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
 		pixmap.setColor(Color.SALMON);
 		pixmap.fill();
-
-		Collections.sort (accounts, new AccountComparator());
 
 		AddAccountsTable();
 
@@ -424,9 +529,8 @@ public class pWallet extends ApplicationAdapter {
 
 	private void ChangeAppPassword() {
 		PersistPassword();
-		int i = 1;
 		for (Account a: accounts) {
-			PersistAccount(a, i++);
+			PersistAccount(a);
 			}
 		}
 
