@@ -66,15 +66,15 @@ public class pWallet extends ApplicationAdapter {
 	private static final String PASSWORD_KEY = "p";
 	private static final String NUMBER_OF_ACCOUNTS_KEY = "noa";
 
-	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED}
+	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED, LOGGED_OUT, LOGGED_IN}
 
 	private static final String TAG = pWallet.class.getName();
 
 	private String inputPassword = "";
 
-	TextField nameTextField;
-	TextField usernameTextField;
-	TextField passwordTextField;
+	private TextField nameTextField;
+	private TextField usernameTextField;
+	private TextField passwordTextField;
 
 	private AppStates appState = AppStates.PW_REQUIRED;
 
@@ -83,12 +83,13 @@ public class pWallet extends ApplicationAdapter {
 	private Stage stage;
 
 	private Table scrollTable;
+	private Label errorText;
 
 	private List<Account> accounts = new ArrayList<Account>();
 
 	private int numberOfAccounts;
 
-	StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
+	private StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
 
 	private BasicTextEncryptor textEncryptor;
 
@@ -317,11 +318,17 @@ public class pWallet extends ApplicationAdapter {
 				editDialog.button("Change", "change");
 				editDialog.button("Cancel", "cancel");
 				editDialog.show(stage);
-				}
+				stage.setKeyboardFocus(nameTextField);
+			}
 		}
 
 
 	private void AddAccountsTableToStage () {
+		// remove the error text from stage if it exists
+		if (errorText != null) {
+			errorText.remove();
+			errorText = null;
+			}
 		// first make sure accounts are ordered alphabetically by account name
 		Collections.sort (accounts, new AccountComparator());
 		// add scrollable accounts table to stage
@@ -403,6 +410,7 @@ public class pWallet extends ApplicationAdapter {
 				editDialog.button("Add", "add");
 				editDialog.button("Cancel", "cancel");
 				editDialog.show(stage);
+				stage.setKeyboardFocus(nameTextField);
 				}
 			});
 		button1.setPosition(0, 0);
@@ -434,10 +442,26 @@ public class pWallet extends ApplicationAdapter {
 				editDialog.button("OK", "ok");
 				editDialog.button("Cancel", "cancel");
 				editDialog.show(stage);
+				stage.setKeyboardFocus(passwordTextField);
 				}
 			});
 		button2.setPosition(70, 0);
 		stage.addActor (button2);
+
+		// create the "Logout" button
+		final TextButton button3 = new TextButton ("Logout", skin, "default");
+		button3.setWidth (60);
+		button3.setHeight (40);
+		button3.addListener (new ClickListener() {
+			public void clicked(InputEvent event, float x, float y) {
+				Gdx.app.log(TAG, "Logout button clicked");
+				scrollTable.remove();
+				appState = AppStates.LOGGED_OUT;
+				DisplayPasswordDialog("");
+				}
+			});
+		button3.setPosition(150, 0);
+		stage.addActor (button3);
 
 		appState = AppStates.INITILIZED;
 		}
@@ -487,9 +511,15 @@ public class pWallet extends ApplicationAdapter {
 				}
 			else if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
 				Gdx.app.log(TAG, "CheckPassword: password passed");
-				textEncryptor = new BasicTextEncryptor();
-				textEncryptor.setPassword(inputPassword);
-				appState = AppStates.PW_PASSED;
+				if (appState == AppStates.LOGGED_OUT) {
+					AddAccountsTableToStage();
+					appState = AppStates.LOGGED_IN;
+					}
+				else {
+					textEncryptor = new BasicTextEncryptor();
+					textEncryptor.setPassword(inputPassword);
+					appState = AppStates.PW_PASSED;
+					}
 				return;
 				}
 			else {
@@ -500,11 +530,11 @@ public class pWallet extends ApplicationAdapter {
 			Gdx.app.log(TAG, "CheckPassword: password failed - exception caught)");
 			}
 		// if we get here the password failed so indicate this and prompt again
-		final Label text = new Label("Incorrect Password", skin);
-		text.setColor(Color.RED);
-		text.setPosition(100, 200);
-		text.setFontScale(2, 2);
-		stage.addActor(text);
+		errorText = new Label("Incorrect Password", skin);
+		errorText.setColor(Color.RED);
+		errorText.setPosition(100, 200);
+		errorText.setFontScale(2, 2);
+		stage.addActor(errorText);
 		DisplayPasswordDialog("Incorrect password: re-");
 		}
 
