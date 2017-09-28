@@ -87,6 +87,8 @@ public class pWallet extends ApplicationAdapter {
 
 	private int numberOfAccounts;
 
+	StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
+
 	private BasicTextEncryptor textEncryptor;
 
 	/*
@@ -127,8 +129,6 @@ public class pWallet extends ApplicationAdapter {
 
 		// init preferences for persistent storage
 		prefs = Gdx.app.getPreferences("My Preferences");
-
-		textEncryptor = new BasicTextEncryptor();
 
 		skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
 		stage = new Stage();
@@ -178,7 +178,7 @@ public class pWallet extends ApplicationAdapter {
 		skin.dispose();
 		if (Gdx.app.getClass().getName().endsWith ("LwjglApplication"))
 			AL.destroy();
-			System.exit(0);
+		System.exit(0);
 		}
 
 
@@ -206,19 +206,19 @@ public class pWallet extends ApplicationAdapter {
 				inputPassword = text;
 				Gdx.app.log (TAG, "Password getTextInput: password=(" + inputPassword + ")");
 				CheckPassword();
-			}
+				}
 
 			@Override
 			public void canceled () {
 				inputPassword = "canceled by user";
 			}
-		}, msg+"enter password", "", "");
-	}
+			}, msg+"enter password", "", "");
+		}
 
 
-	private void PersistAccount (Account a) {
+	private void PersistAccount (Account a, int n) {
 		String encryptedText;
-		String key = Integer.toString(++numberOfAccounts) + "-";
+		String key = Integer.toString(n) + "-";
 		//Gdx.app.log (TAG, "PersistAccount: key=(" + key + ")");
 		encryptedText = textEncryptor.encrypt (a.Name);
 		prefs.putString(key+"0", encryptedText);
@@ -292,7 +292,7 @@ public class pWallet extends ApplicationAdapter {
 			}
 		Gdx.app.log (TAG, "AddNewAccount: (an=" + accountName + ", un=" + userName + ", pw=" + accountPassword + ")");
 		Account a = new Account(accountName, userName, accountPassword);
-		PersistAccount(a);
+		PersistAccount(a, ++numberOfAccounts);
 		accounts.add(a);
 		Collections.sort (accounts, new AccountComparator());
 		scrollTable.remove();
@@ -329,12 +329,12 @@ public class pWallet extends ApplicationAdapter {
 			// load any persisted accounts
 			numberOfAccounts = prefs.getInteger(NUMBER_OF_ACCOUNTS_KEY);
 			LoadAccounts();
-		}
+			}
 		else {
 			// no accounts persisted yet so initilize the key
 			numberOfAccounts = 0;
 			prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
-		}
+			}
 
 		// password matched, so show the accounts and buttons
 		pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
@@ -346,16 +346,16 @@ public class pWallet extends ApplicationAdapter {
 		AddAccountsTable();
 
 		// create the "Add Account" button
-		final TextButton button = new TextButton ("Add Account", skin, "default");
-		button.setWidth (100);
-		button.setHeight (40);
-		button.addListener (new ClickListener() {
+		final TextButton button1 = new TextButton ("Add\nAccount", skin, "default");
+		button1.setWidth (70);
+		button1.setHeight (40);
+		button1.addListener (new ClickListener() {
 			@Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.input.getTextInput (new Input.TextInputListener() {
 					@Override
 					public void input (String text) {
-						Gdx.app.log (TAG, "TextInputListener: account name=" + text);
+						Gdx.app.log (TAG, "Add Account TextInputListener: account name=" + text);
 						accountName = text;
 						newAccountState = NewAccountStates.NAME_ENTERED;
 						}
@@ -368,35 +368,97 @@ public class pWallet extends ApplicationAdapter {
 					}, "enter account name", "", "");
 				}
 			});
-		button.setPosition(SCREEN_WIDTH/2-50, 0);
-		stage.addActor (button);
+		button1.setPosition(0, 0);
+		stage.addActor (button1);
+
+		// create the "New Password" button
+		final TextButton button2 = new TextButton ("New\nPassword", skin, "default");
+		button2.setWidth (80);
+		button2.setHeight (40);
+		button2.addListener (new ClickListener() {
+			@Override
+			public void clicked(InputEvent event, float x, float y) {
+				Gdx.input.getTextInput (new Input.TextInputListener() {
+					@Override
+					public void input(String text) {
+						Gdx.app.log(TAG, "New Password TextInputListener: password=" + text);
+						if (text.equals(""))
+							return;
+						inputPassword = text;
+						ConfirmNewPassword ();
+						};
+
+					@Override
+					public void canceled() {}
+					}, "enter new password", "", "");
+				}
+			});
+		button2.setPosition(70, 0);
+		stage.addActor (button2);
 
 		Gdx.input.setInputProcessor (stage);
 		appState = AppStates.INITILIZED;
 		}
 
 
+	private void ConfirmNewPassword () {
+		Gdx.input.getTextInput (new Input.TextInputListener() {
+			@Override
+			public void input (String text) {
+				Gdx.app.log (TAG, "ConfirmNewPassword TextInputListener: password=" + text);
+				if (!text.equals(inputPassword)) {
+					Dialog errorDialog = new Dialog("Error", skin);
+					errorDialog.text("Password \"" + inputPassword + "\" not equal to \"" + text +"\"");
+					errorDialog.button("OK", skin);
+					errorDialog.show(stage);
+					return;
+					}
+				ChangeAppPassword();
+				}
+
+			@Override
+			public void canceled () {}
+			}, "confirm new password", "", "");
+		}
+
+
+	private void ChangeAppPassword() {
+		PersistPassword();
+		int i = 1;
+		for (Account a: accounts) {
+			PersistAccount(a, i++);
+			}
+		}
+
+
+	private void PersistPassword () {
+		String encryptedPassword = passwordEncryptor.encryptPassword(inputPassword);
+		Gdx.app.log(TAG, "PersistPassword: new encrypted password=(" + inputPassword +
+				" - " + encryptedPassword + ")");
+		prefs.putString(PASSWORD_KEY, encryptedPassword);
+		prefs.flush();
+
+		textEncryptor = new BasicTextEncryptor();
+		// TODO: make this textEncryptor password more robust
+		textEncryptor.setPassword(inputPassword);
+	}
+
+
 	private void CheckPassword () {
-		StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor ();
 		String savedPassword = prefs.getString(PASSWORD_KEY, "Not stored");
 		Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
 		try {
 			if (savedPassword.equals("Not stored")) {
 				// initialize the app to this new password
-				String encryptedPassword = passwordEncryptor.encryptPassword(inputPassword);
-				Gdx.app.log(TAG, "CheckPassword: new encrypted password=(" + inputPassword +
-							" - " + encryptedPassword + ")");
-				prefs.putString(PASSWORD_KEY, encryptedPassword);
-				prefs.flush();
+				PersistPassword();
 				appState = AppStates.PW_PASSED;
-				// TODO: make this password more robust
-				textEncryptor.setPassword(inputPassword);
 				return;
 				}
 			else if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
 				Gdx.app.log(TAG, "CheckPassword: password passed");
-				appState = AppStates.PW_PASSED;
+				textEncryptor = new BasicTextEncryptor();
 				textEncryptor.setPassword(inputPassword);
+				appState = AppStates.PW_PASSED;
 				return;
 				}
 			else {
