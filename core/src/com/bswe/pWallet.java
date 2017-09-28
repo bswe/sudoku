@@ -71,9 +71,6 @@ public class pWallet extends ApplicationAdapter {
 	private static final String TAG = pWallet.class.getName();
 
 	private String inputPassword = "";
-	//private String accountName = "";
-	//private String accountUsername = "";
-	//private String accountPassword = "";
 
 	TextField nameTextField;
 	TextField usernameTextField;
@@ -94,34 +91,6 @@ public class pWallet extends ApplicationAdapter {
 	StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
 
 	private BasicTextEncryptor textEncryptor;
-
-	/*
-	List<Account> accounts = new ArrayList<Account>(Arrays.asList (
-					new Account ("Netflixa", "mindspring", "Simba348"),
-					new Account ("Netflixb", "mindspring", "Simba348"),
-					new Account ("Netflixc", "mindspring", "Simba348"),
-					new Account ("Netflixg", "mindspring", "Simba348"),
-					new Account ("Netflixh", "mindspring", "Simba348"),
-					new Account ("Netflixi", "mindspring", "Simba348"),
-					new Account ("Netflixj", "mindspringyomama", "Simba348"),
-					new Account ("Netflixk", "mindspring", "Simba348"),
-					new Account ("Chase", "gmail", "Simba348"),
-					new Account ("Netflixl", "mindspring", "Simba348"),
-					new Account ("Netflixm", "mindspring", "Simba348"),
-					new Account ("Netflixn", "mindspring", "Simba348"),
-					new Account ("Netflixo", "mindspring", "Simba348"),
-					new Account ("Netflixp", "mindspring", "Simba348"),
-					new Account ("Netflixq", "mindspring", "Simba348"),
-					new Account ("Netflixd", "mindspring", "Simba348"),
-					new Account ("Netflixe", "mindspring", "Simba348"),
-					new Account ("Netflixf", "mindspring", "Simba348"),
-					new Account ("Netflixr", "mindspring", "Simba348"),
-					new Account ("Netflixs", "mindspring", "Simba348"),
-					new Account ("Netflixt", "mindspring", "Simba348"),
-					new Account ("Netflixu", "mindspring", "Simba348"),
-					new Account ("Netflixv", "mindspring", "Simba348"),
-					new Account ("Mindspring", "wcbwcb", "Yomama348")));
-	 */
 
 	private Preferences prefs;
 
@@ -232,7 +201,7 @@ public class pWallet extends ApplicationAdapter {
 		prefs.putString(key+"2", encryptedText);
 		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
 		prefs.flush();
-	}
+		}
 
 
 	private void UnPersistAllAccounts () {
@@ -241,10 +210,10 @@ public class pWallet extends ApplicationAdapter {
 			prefs.remove(key + "0");
 			prefs.remove(key + "1");
 			prefs.remove(key + "2");
-		}
+			}
 		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, 0);
 		prefs.flush();
-	}
+		}
 
 
 	private void PersistAllAccounts () {
@@ -502,7 +471,7 @@ public class pWallet extends ApplicationAdapter {
 		textEncryptor = new BasicTextEncryptor();
 		// TODO: make this textEncryptor password more robust
 		textEncryptor.setPassword(inputPassword);
-	}
+		}
 
 
 	private void CheckPassword () {
