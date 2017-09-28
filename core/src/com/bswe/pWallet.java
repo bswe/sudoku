@@ -409,7 +409,6 @@ public class pWallet extends ApplicationAdapter {
 		button1.setWidth (70);
 		button1.setHeight (40);
 		button1.addListener (new ClickListener() {
-			@Override
 			public void clicked(InputEvent event, float x, float y) {
 				nameTextField = new TextField("", skin);
 				usernameTextField = new TextField("", skin);
@@ -446,19 +445,26 @@ public class pWallet extends ApplicationAdapter {
 		button2.setHeight (40);
 		button2.addListener (new ClickListener() {
 			public void clicked(InputEvent event, float x, float y) {
-				Gdx.input.getTextInput (new Input.TextInputListener() {
-					@Override
-					public void input(String text) {
-						Gdx.app.log(TAG, "New Password TextInputListener: password=" + text);
-						if (text.equals(""))
-							return;
-						inputPassword = text;
-						ConfirmNewPassword ();
-						};
-
-					@Override
-					public void canceled() {}
-					}, "enter new password", "", "");
+				passwordTextField = new TextField("", skin);
+				usernameTextField = new TextField("", skin);
+				Table table = new Table(skin);
+				table.add("new password ").align(Align.right);
+				table.add(passwordTextField);
+				table.row();
+				table.add("confirm password ").align(Align.right);
+				table.add(usernameTextField);
+				Dialog editDialog = new Dialog("New Password", skin) {
+					protected void result(Object object) {
+						Gdx.app.log(TAG, "New Password dialog: chosen = " + object);
+						//Gdx.app.log (TAG, "New Password dialog: new password = " + passwordTextField.getText());
+						if (object.equals("ok"))
+							ChangeAppPassword();
+						}
+					};
+				editDialog.getContentTable().add(table);
+				editDialog.button("OK", "ok");
+				editDialog.button("Cancel", "cancel");
+				editDialog.show(stage);
 				}
 			});
 		button2.setPosition(70, 0);
@@ -468,31 +474,20 @@ public class pWallet extends ApplicationAdapter {
 		}
 
 
-	private void ConfirmNewPassword () {
-		Gdx.input.getTextInput (new Input.TextInputListener() {
-			@Override
-			public void input (String text) {
-				Gdx.app.log (TAG, "ConfirmNewPassword TextInputListener: password=" + text);
-				if (!text.equals(inputPassword)) {
-					Dialog errorDialog = new Dialog("Error", skin);
-					errorDialog.text("Password \"" + inputPassword + "\" not equal to \"" + text +"\"");
-					errorDialog.button("OK", skin);
-					errorDialog.show(stage);
-					return;
-					}
-				ChangeAppPassword();
-				}
-
-			@Override
-			public void canceled () {}
-			}, "confirm new password", "", "");
-		}
-
-
 	private void ChangeAppPassword() {
-		PersistPassword();
-		for (Account a: accounts) {
-			PersistAccount(a);
+		if (passwordTextField.getText().equals(usernameTextField.getText())) {
+			inputPassword = passwordTextField.getText();
+			PersistPassword();
+			for (Account a : accounts) {
+				PersistAccount(a);
+				}
+			}
+		else {
+			Dialog errorDialog = new Dialog("Error", skin);
+			errorDialog.text("Password \"" + passwordTextField.getText() + "\" not confirmed by \"" +
+							 usernameTextField.getText() +"\"");
+			errorDialog.button("OK", skin);
+			errorDialog.show(stage);
 			}
 		}
 
