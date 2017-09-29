@@ -23,6 +23,9 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.XmlReader;
+import com.badlogic.gdx.utils.XmlReader.Element;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 
 import org.jasypt.util.password.StrongPasswordEncryptor;
@@ -63,8 +66,8 @@ class AccountComparator implements Comparator<Account>{
 public class pWallet extends ApplicationAdapter {
 	public static final int SCREEN_WIDTH = 400;
 	public static final int SCREEN_HEIGHT = 660;
-	private static final String PASSWORD_KEY = "p";
-	private static final String NUMBER_OF_ACCOUNTS_KEY = "noa";
+	private static final String PASSWORD_KEY = "1";
+	private static final String NUMBER_OF_ACCOUNTS_KEY = "2";
 
 	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED, LOGGED_OUT, LOGGED_IN}
 
@@ -99,7 +102,7 @@ public class pWallet extends ApplicationAdapter {
 	@Override
 	public void create () {
 		// init preferences for persistent storage
-		prefs = Gdx.app.getPreferences("My Preferences");
+		prefs = Gdx.app.getPreferences("bswe-pwallet");
 
 		skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
 		stage = new Stage();
@@ -109,18 +112,6 @@ public class pWallet extends ApplicationAdapter {
 		DisplayPasswordDialog("");
 
 		Gdx.input.setInputProcessor (stage);
-
-		/* TODO:  test code to be removed
-		boolean isExtAvailable = Gdx.files.isExternalStorageAvailable();
-		Gdx.app.log(TAG, "create: is external storage available = " + isExtAvailable);
-		String extRoot = Gdx.files.getExternalStoragePath();
-		Gdx.app.log(TAG, "create: external storage path root = " + extRoot);
-		//FileHandle file = Gdx.files.external("MyTestFile");
-		//file.writeString("My god, it's full of stars", false);
-		FileHandle file = Gdx.files.external("Download/My Preferences");
-		String text = file.readString();
-		Gdx.app.log(TAG, "create: text read = " + text);
-		*/
 		}
 
 
@@ -158,13 +149,16 @@ public class pWallet extends ApplicationAdapter {
 	// load accounts from persistent memory
 	private void LoadAccounts () {
 		for (int i=1; i <= numberOfAccounts; i++) {
-			String key = Integer.toString(i) + "-";
-			String name = prefs.getString(key+"0", "");
-			//Gdx.app.log (TAG, "LoadAccounts: ename=(" + ename + ")");
+            String key;
+            Integer index = i * 3;
+            key = Integer.toString(index++);
+			String name = prefs.getString(key, "");
 			name = textEncryptor.decrypt(name);
-			String userName = prefs.getString(key+"1", "");
+            key = Integer.toString(index++);
+            String userName = prefs.getString(key, "");
 			userName = textEncryptor.decrypt(userName);
-			String password = prefs.getString(key+"2", "");
+            key = Integer.toString(index++);
+            String password = prefs.getString(key, "");
 			password = textEncryptor.decrypt(password);
 			Account a = new Account(i, name, userName, password);
 			accounts.add(a);
@@ -192,27 +186,34 @@ public class pWallet extends ApplicationAdapter {
 
 	private void PersistAccount (Account a) {
 		String encryptedText;
-		String key = Integer.toString(a.PersistenceIndex) + "-";
-		//Gdx.app.log (TAG, "PersistAccount: key=(" + key + ")");
+		String key;
+        Integer index = a.PersistenceIndex * 3;
+        key = Integer.toString(index++);
 		encryptedText = textEncryptor.encrypt (a.Name);
-		prefs.putString(key+"0", encryptedText);
+		prefs.putString(key, encryptedText);
+        key = Integer.toString(index++);
 		encryptedText = textEncryptor.encrypt (a.UserName);
-		prefs.putString(key+"1", encryptedText);
+		prefs.putString(key, encryptedText);
+        key = Integer.toString(index++);
 		encryptedText = textEncryptor.encrypt (a.Password);
-		prefs.putString(key+"2", encryptedText);
-		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
+		prefs.putString(key, encryptedText);
+		prefs.putString(NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString(numberOfAccounts)));
 		prefs.flush();
 		}
 
 
 	private void UnPersistAllAccounts () {
 		for (Account a : accounts) {
-			String key = Integer.toString(a.PersistenceIndex) + "-";
-			prefs.remove(key + "0");
-			prefs.remove(key + "1");
-			prefs.remove(key + "2");
+            String key;
+            Integer index = a.PersistenceIndex * 3;
+            key = Integer.toString(index++);
+			prefs.remove(key);
+            key = Integer.toString(index++);
+            prefs.remove(key);
+            key = Integer.toString(index++);
+            prefs.remove(key);
 			}
-		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, 0);
+		prefs.putString(NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString(0)));
 		prefs.flush();
 		}
 
@@ -223,7 +224,7 @@ public class pWallet extends ApplicationAdapter {
 			a.PersistenceIndex = ++i;
 			PersistAccount(a);
 			}
-		prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, i);
+		prefs.putString(NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString(i)));
 		prefs.flush();
 	}
 
@@ -319,7 +320,7 @@ public class pWallet extends ApplicationAdapter {
 				editDialog.button("Cancel", "cancel");
 				editDialog.show(stage);
 				stage.setKeyboardFocus(firstTextField);
-			}
+			    }
 		}
 
 
@@ -362,26 +363,51 @@ public class pWallet extends ApplicationAdapter {
 
 	private void RestoreAccounts() {
 		Gdx.app.log(TAG, "RestoreAccounts: file path = " + firstTextField.getText());
-	}
+        FileHandle file = Gdx.files.external (firstTextField.getText());
+        String xml = file.readString();
+        XmlReader reader = new XmlReader();
+        Element root = reader.parse (xml);
+        //Gdx.app.log(TAG, "RestoreAccounts: root = " + root.getName());
+        //Gdx.app.log(TAG, "RestoreAccounts: root.child(0) = " + root.getChild(0).getName());
+        //Gdx.app.log(TAG, "RestoreAccounts: root.child(0) = " + root.getChild(0).getText());
+        //Gdx.app.log(TAG, "RestoreAccounts: root.child(0) = " + root.getChild(0).getAttribute("key"));
+        Array<Element> items = root.getChildrenByName ("entry");
+        for (Element item : items) {
+            Gdx.app.log(TAG, "RestoreAccounts: entry " + item.getAttribute("key") + " = " + item.getText());
+            }
+	    }
 
 
 	private void SaveAccounts() {
 		Gdx.app.log(TAG, "SaveAccounts: file path = " + firstTextField.getText());
-	}
+
+		/* TODO:  test code to be removed
+		Gdx.app.log(TAG, "create: is external storage available = " + Gdx.files.isExternalStorageAvailable());
+		Gdx.app.log(TAG, "create: external storage path root = " + Gdx.files.getExternalStoragePath());
+		FileHandle file = Gdx.files.external("MyTestFile");
+		file.writeString("My god, it's full of stars", false);
+		FileHandle file = Gdx.files.external("Download/My Preferences");   // for android
+		String text = file.readString();
+		Gdx.app.log(TAG, "create: text read = " + text);
+		*/
+	    }
 
 
 	private void Initialize () {
 		// check preferences for any accounts
 		if (prefs.contains(NUMBER_OF_ACCOUNTS_KEY)) {
 			// load any persisted accounts
-			numberOfAccounts = prefs.getInteger(NUMBER_OF_ACCOUNTS_KEY);
-			LoadAccounts();
+			numberOfAccounts = Integer.parseInt(textEncryptor.decrypt(prefs.getString(NUMBER_OF_ACCOUNTS_KEY)));
+            Gdx.app.log(TAG, "Initialize: persisted numberOfAccounts = " + numberOfAccounts);
+            LoadAccounts();
 			}
 		else {
-			// no accounts persisted yet so initilize the key
+			// no accounts persisted yet so initialize the key
 			numberOfAccounts = 0;
-			prefs.putInteger(NUMBER_OF_ACCOUNTS_KEY, numberOfAccounts);
-			}
+            Gdx.app.log(TAG, "Initialize: initial numberOfAccounts = " + numberOfAccounts);
+			prefs.putString(NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString(numberOfAccounts)));
+            prefs.flush();
+		    }
 
 		// password matched, so show the accounts and buttons
 		pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
@@ -414,8 +440,8 @@ public class pWallet extends ApplicationAdapter {
 						//Gdx.app.log (TAG, "AddAccount dialog: name = " + firstTextField.getText());
 						if (object.equals("add"))
 							AddNewAccount();
-					}
-				};
+					    }
+				    };
 				editDialog.getContentTable().add(table);
 				editDialog.button("Add", "add");
 				editDialog.button("Cancel", "cancel");
@@ -484,6 +510,10 @@ public class pWallet extends ApplicationAdapter {
 				Table table = new Table(skin);
 				table.add("File Path ").align(Align.right);
 				table.add(firstTextField);
+                table.row();
+                Label warning = new Label("WARNING: password will be set\n\rto what is in the restore file", skin);
+                warning.setColor(Color.RED);
+                table.add(warning).colspan(2);
 				Dialog editDialog = new Dialog("Restore Accounts", skin) {
 					protected void result(Object object) {
 						Gdx.app.log(TAG, "Restore Accounts dialog: chosen = " + object);
