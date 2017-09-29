@@ -31,11 +31,9 @@ import com.badlogic.gdx.utils.viewport.StretchViewport;
 import org.jasypt.util.password.StrongPasswordEncryptor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.ListIterator;
 
 import org.jasypt.util.text.BasicTextEncryptor;
 import org.jasypt.util.text.StrongTextEncryptor;
@@ -88,7 +86,7 @@ public class pWallet extends ApplicationAdapter {
 	private Table scrollTable;
 	private Label errorText;
 
-	private List<Account> accounts = new ArrayList<Account>();
+	private List<Account> accounts;
 
 	private int numberOfAccounts;
 
@@ -275,6 +273,7 @@ public class pWallet extends ApplicationAdapter {
 			if (a.Name.equals (accountName)) {
 				UnPersistAllAccounts();
 				accounts.remove (a);
+                numberOfAccounts--;
 				PersistAllAccounts();
 				break;
 				}
@@ -362,49 +361,53 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void RestoreAccounts() {
-		Gdx.app.log(TAG, "RestoreAccounts: file path = " + firstTextField.getText());
+        Integer index;
+		Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
         FileHandle file = Gdx.files.external (firstTextField.getText());
         String xml = file.readString();
         XmlReader reader = new XmlReader();
         Element root = reader.parse (xml);
-        //Gdx.app.log(TAG, "RestoreAccounts: root = " + root.getName());
-        //Gdx.app.log(TAG, "RestoreAccounts: root.child(0) = " + root.getChild(0).getName());
-        //Gdx.app.log(TAG, "RestoreAccounts: root.child(0) = " + root.getChild(0).getText());
-        //Gdx.app.log(TAG, "RestoreAccounts: root.child(0) = " + root.getChild(0).getAttribute("key"));
         Array<Element> items = root.getChildrenByName ("entry");
+        UnPersistAllAccounts();
         for (Element item : items) {
-            Gdx.app.log(TAG, "RestoreAccounts: entry " + item.getAttribute("key") + " = " + item.getText());
+            Gdx.app.log (TAG, "RestoreAccounts: entry " + item.getAttribute("key") + " = " + item.getText());
+            prefs.putString(item.getAttribute("key"), item.getText());
             }
+        prefs.flush();
+        stage.clear();
+        appState = AppStates.PW_REQUIRED;
+        DisplayPasswordDialog ("");
 	    }
 
 
 	private void SaveAccounts() {
-		Gdx.app.log(TAG, "SaveAccounts: file path = " + firstTextField.getText());
+		Gdx.app.log (TAG, "SaveAccounts: file path = " + firstTextField.getText());
 
 		/* TODO:  test code to be removed
-		Gdx.app.log(TAG, "create: is external storage available = " + Gdx.files.isExternalStorageAvailable());
-		Gdx.app.log(TAG, "create: external storage path root = " + Gdx.files.getExternalStoragePath());
+		Gdx.app.log (TAG, "create: is external storage available = " + Gdx.files.isExternalStorageAvailable());
+		Gdx.app.log (TAG, "create: external storage path root = " + Gdx.files.getExternalStoragePath());
 		FileHandle file = Gdx.files.external("MyTestFile");
 		file.writeString("My god, it's full of stars", false);
 		FileHandle file = Gdx.files.external("Download/My Preferences");   // for android
 		String text = file.readString();
-		Gdx.app.log(TAG, "create: text read = " + text);
+		Gdx.app.log (TAG, "create: text read = " + text);
 		*/
 	    }
 
 
 	private void Initialize () {
+        accounts = new ArrayList<Account>();
 		// check preferences for any accounts
 		if (prefs.contains(NUMBER_OF_ACCOUNTS_KEY)) {
 			// load any persisted accounts
 			numberOfAccounts = Integer.parseInt(textEncryptor.decrypt(prefs.getString(NUMBER_OF_ACCOUNTS_KEY)));
-            Gdx.app.log(TAG, "Initialize: persisted numberOfAccounts = " + numberOfAccounts);
+            Gdx.app.log (TAG, "Initialize: persisted numberOfAccounts = " + numberOfAccounts);
             LoadAccounts();
 			}
 		else {
 			// no accounts persisted yet so initialize the key
 			numberOfAccounts = 0;
-            Gdx.app.log(TAG, "Initialize: initial numberOfAccounts = " + numberOfAccounts);
+            Gdx.app.log (TAG, "Initialize: initial numberOfAccounts = " + numberOfAccounts);
 			prefs.putString(NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString(numberOfAccounts)));
             prefs.flush();
 		    }
@@ -414,7 +417,7 @@ public class pWallet extends ApplicationAdapter {
 		pixmap.setColor(Color.SALMON);
 		pixmap.fill();
 
-		AddAccountsTableToStage();
+        AddAccountsTableToStage();
 
 		// create the "Add Account" button
 		final TextButton button1 = new TextButton ("Add\nAccount", skin, "default");
@@ -436,7 +439,7 @@ public class pWallet extends ApplicationAdapter {
 				table.add(thirdTextField);
 				Dialog editDialog = new Dialog("Add Account", skin) {
 					protected void result(Object object) {
-						Gdx.app.log(TAG, "AddAccount dialog: chosen = " + object);
+						Gdx.app.log (TAG, "AddAccount dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "AddAccount dialog: name = " + firstTextField.getText());
 						if (object.equals("add"))
 							AddNewAccount();
@@ -468,7 +471,7 @@ public class pWallet extends ApplicationAdapter {
 				table.add(secondTextField);
 				Dialog editDialog = new Dialog("Change Password", skin) {
 					protected void result(Object object) {
-						Gdx.app.log(TAG, "Change Password dialog: chosen = " + object);
+						Gdx.app.log (TAG, "Change Password dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "Change Password dialog: new password = " + firstTextField.getText());
 						if (object.equals("ok"))
 							ChangeAppPassword();
@@ -490,7 +493,7 @@ public class pWallet extends ApplicationAdapter {
 		button3.setHeight (40);
 		button3.addListener (new ClickListener() {
 			public void clicked(InputEvent event, float x, float y) {
-				Gdx.app.log(TAG, "Logout button clicked");
+				Gdx.app.log (TAG, "Logout button clicked");
 				scrollTable.remove();
 				appState = AppStates.LOGGED_OUT;
 				DisplayPasswordDialog("");
@@ -505,7 +508,7 @@ public class pWallet extends ApplicationAdapter {
 		button4.setHeight (40);
 		button4.addListener (new ClickListener() {
 			public void clicked(InputEvent event, float x, float y) {
-				Gdx.app.log(TAG, "Restore Accounts button clicked");
+				Gdx.app.log (TAG, "Restore Accounts button clicked");
 				firstTextField = new TextField("", skin);
 				Table table = new Table(skin);
 				table.add("File Path ").align(Align.right);
@@ -516,7 +519,7 @@ public class pWallet extends ApplicationAdapter {
                 table.add(warning).colspan(2);
 				Dialog editDialog = new Dialog("Restore Accounts", skin) {
 					protected void result(Object object) {
-						Gdx.app.log(TAG, "Restore Accounts dialog: chosen = " + object);
+						Gdx.app.log (TAG, "Restore Accounts dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "Restore Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals("ok"))
 							RestoreAccounts();
@@ -538,14 +541,14 @@ public class pWallet extends ApplicationAdapter {
 		button5.setHeight (40);
 		button5.addListener (new ClickListener() {
 			public void clicked(InputEvent event, float x, float y) {
-				Gdx.app.log(TAG, "Save button clicked");
+				Gdx.app.log (TAG, "Save button clicked");
 				firstTextField = new TextField("", skin);
 				Table table = new Table(skin);
 				table.add("File Path ").align(Align.right);
 				table.add(firstTextField);
 				Dialog editDialog = new Dialog("Save Accounts", skin) {
 					protected void result(Object object) {
-						Gdx.app.log(TAG, "Save Accounts dialog: chosen = " + object);
+						Gdx.app.log (TAG, "Save Accounts dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "Save Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals("ok"))
 							SaveAccounts();
@@ -585,7 +588,7 @@ public class pWallet extends ApplicationAdapter {
 
 	private void PersistPassword () {
 		String encryptedPassword = passwordEncryptor.encryptPassword(inputPassword);
-		Gdx.app.log(TAG, "PersistPassword: new encrypted password=(" + inputPassword +
+		Gdx.app.log (TAG, "PersistPassword: new encrypted password=(" + inputPassword +
 				" - " + encryptedPassword + ")");
 		prefs.putString(PASSWORD_KEY, encryptedPassword);
 		prefs.flush();
@@ -608,7 +611,7 @@ public class pWallet extends ApplicationAdapter {
 				return;
 				}
 			else if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
-				Gdx.app.log(TAG, "CheckPassword: password passed");
+				Gdx.app.log (TAG, "CheckPassword: password passed");
 				if (appState == AppStates.LOGGED_OUT) {
 					AddAccountsTableToStage();
 					appState = AppStates.LOGGED_IN;
@@ -621,11 +624,11 @@ public class pWallet extends ApplicationAdapter {
 				return;
 				}
 			else {
-				Gdx.app.log(TAG, "CheckPassword: password failed)");
+				Gdx.app.log (TAG, "CheckPassword: password failed)");
 				}
 			}
 		catch (Exception e) {
-			Gdx.app.log(TAG, "CheckPassword: password failed - exception caught)");
+			Gdx.app.log (TAG, "CheckPassword: password failed - exception caught)");
 			}
 		// if we get here the password failed so indicate this and prompt again
 		errorText = new Label("Incorrect Password", skin);
