@@ -19,7 +19,7 @@ android {
     }
     defaultConfig {
         applicationId "com.bswe"
-        minSdkVersion 9
+        minSdkVersion 20
         targetSdkVersion 26
         versionCode 1
         versionName "1.0"
@@ -29,6 +29,8 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+    productFlavors {
     }
 }
 // called every time gradle gets executed, takes the native dependencies of

@@ -24,6 +24,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.Clipboard;
 import com.badlogic.gdx.utils.XmlReader;
 import com.badlogic.gdx.utils.XmlReader.Element;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
@@ -62,12 +63,14 @@ class AccountComparator implements Comparator<Account>{
 
 // Main application class
 public class pWallet extends ApplicationAdapter {
+    // TODO: make handling of file i/o and user input more robust and exception safe
 	public static final int SCREEN_WIDTH = 400;
 	public static final int SCREEN_HEIGHT = 660;
 	private static final String PASSWORD_KEY = "1";
 	private static final String NUMBER_OF_ACCOUNTS_KEY = "2";
+    private static final float INACTIVITY_DURATION = 10f;    // in seconds
 
-	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED, LOGGED_OUT, LOGGED_IN}
+	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED, LOGGED_OUT}
 
 	private static final String TAG = pWallet.class.getName();
 
@@ -81,7 +84,8 @@ public class pWallet extends ApplicationAdapter {
 
 	private Pixmap pixmap;
 	private Skin skin;
-	private Stage stage;
+    private Stage stage;
+    private Stage loginStage;
 
 	private Table scrollTable;
 	private Label errorText;
@@ -96,6 +100,13 @@ public class pWallet extends ApplicationAdapter {
 
 	private Preferences prefs;
 
+    private float elapsedTimeInSeconds = 0;
+
+
+    public pWallet () {
+        super();
+        }
+
 
 	@Override
 	public void create () {
@@ -104,14 +115,28 @@ public class pWallet extends ApplicationAdapter {
 
 		skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
         skin.getFont("font").getData().setScale(1f);
-		stage = new Stage();
-		stage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
+        stage = new Stage();
+        stage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
+        loginStage = new Stage();
+        loginStage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
 
 		// display password entry dialog
 		DisplayPasswordDialog("");
-
-		Gdx.input.setInputProcessor (stage);
 		}
+
+
+    private Boolean InactivityWatchdogFired() {
+        // log user out if they haven't touched the screen in INACTIVITY_DURATION number of seconds
+        if (Gdx.input.justTouched())
+            elapsedTimeInSeconds = 0;
+        elapsedTimeInSeconds += Gdx.graphics.getRawDeltaTime();
+        if (elapsedTimeInSeconds > INACTIVITY_DURATION) {
+            Gdx.app.log(TAG, "InactivityWatchdogFired: inactivity watchdog fired, logging user out");
+            LogoutUser();
+            return true;
+            }
+        return false;
+        }
 
 
 	@Override
@@ -119,18 +144,31 @@ public class pWallet extends ApplicationAdapter {
 		Gdx.gl.glClearColor (0, 0, 0, 1);
 		Gdx.gl.glClear (GL20.GL_COLOR_BUFFER_BIT);
 
-		if (appState == AppStates.PW_PASSED)
-			Initialize();
-		stage.getViewport().apply();
-		stage.act (Gdx.graphics.getDeltaTime());
-		stage.draw();
+		switch (appState) {
+            case PW_REQUIRED:
+            case LOGGED_OUT:
+                loginStage.getViewport().apply();
+                loginStage.act(Gdx.graphics.getDeltaTime());
+                loginStage.draw();
+                break;
+            case PW_PASSED:
+                Initialize();
+                // intentionally drop thru to INITIALIZED case below
+            case INITILIZED:
+                if (InactivityWatchdogFired())
+                    return;
+                stage.getViewport().apply();
+                stage.act(Gdx.graphics.getDeltaTime());
+                stage.draw();
+            }
 		}
 
 
 	@Override
 	public void resize (int width, int height) {
 		Gdx.app.log (TAG, "resize: w=" + width + ", h=" + height);
-		stage.getViewport().update (width, height, true);
+        stage.getViewport().update (width, height, true);
+        loginStage.getViewport().update (width, height, true);
 		}
 
 
@@ -187,8 +225,9 @@ public class pWallet extends ApplicationAdapter {
 		editDialog.button("OK", "ok");
 		editDialog.getContentTable().add(table);
         editDialog.scaleBy(.5f);
-        editDialog.show(stage).setX(70f);
-		stage.setKeyboardFocus(firstTextField);
+        editDialog.show(loginStage).setX(70f);
+        loginStage.setKeyboardFocus(firstTextField);
+        Gdx.input.setInputProcessor (loginStage);
 		}
 
 
@@ -259,7 +298,7 @@ public class pWallet extends ApplicationAdapter {
 				return;
 				}
 		Gdx.app.log (TAG, "AddNewAccount: (an=" + accountName + ", un=" + accountUsername + ", pw=" + accountPassword + ")");
-		Account a = new Account(++numberOfAccounts, accountName, accountUsername, accountPassword);
+		Account a = new Account (++numberOfAccounts, accountName, accountUsername, accountPassword);
 		PersistAccount(a);
 		accounts.add(a);
 		RedisplayAccountsTable();
@@ -279,15 +318,31 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void DeleteAccount (String accountName) {
-		for (Account a : accounts)
-			if (a.Name.equals (accountName)) {
-				UnPersistAllAccounts();
-				accounts.remove (a);
-                numberOfAccounts--;
-				PersistAllAccounts();
-				break;
-				}
-		RedisplayAccountsTable();
+        final String name = accountName;
+        Dialog confirmationDialog = new Dialog ("Delete Account Confirmation", skin) {
+            protected void result (Object object) {
+                Gdx.app.log (TAG, "DeleteAccount confirmation dialog: chosen = " + object);
+                if (object.equals("ok"))
+                    for (Account a : accounts)
+                        if (a.Name.equals (name)) {
+                            UnPersistAllAccounts();
+                            accounts.remove (a);
+                            numberOfAccounts--;
+                            PersistAllAccounts();
+                            break;
+                        }
+                RedisplayAccountsTable();
+                }
+            };
+        Table table = new Table();
+        Label label = new Label("Confirm the deletion\n\rof account " + name, skin);
+        label.setAlignment(Align.center);
+        table.add(label);
+        confirmationDialog.getContentTable().add(table);
+        confirmationDialog.button ("OK", "ok");
+        confirmationDialog.button ("Cancel", "cancel");
+        confirmationDialog.scaleBy (.5f);
+        confirmationDialog.show (stage).setX(10f);
 		}
 
 
@@ -333,6 +388,26 @@ public class pWallet extends ApplicationAdapter {
 		}
 
 
+    private void CopyToSystemClipboard (String s) {
+        final String S = s;
+        Dialog confirmationDialog = new Dialog ("Copy Password Confirmation", skin) {
+            protected void result (Object object) {
+                Gdx.app.log (TAG, "CopyToSystemClipboard confirmation dialog: chosen = " + object);
+                // TODO; add code to copy to system clipboard using callback passed into constructor
+                }
+            };
+        Table table = new Table();
+        Label label = new Label("Confirm the copying\n\rof password\n\r" + S + "\n\rto system clipboard", skin);
+        label.setAlignment(Align.center);
+        table.add(label);
+        confirmationDialog.getContentTable().add(table);
+        confirmationDialog.button("OK", "ok");
+        confirmationDialog.button("Cancel", "cancel");
+        confirmationDialog.scaleBy(.5f);
+        confirmationDialog.show(stage).setX(10f);
+        }
+
+
 	private void AddAccountsTableToStage () {
 		// first make sure accounts are ordered alphabetically by account name
 		Collections.sort (accounts, new AccountComparator());
@@ -352,10 +427,18 @@ public class pWallet extends ApplicationAdapter {
             final String name = a.Name;
             button.addListener (new ClickListener() {
                 @Override
-                public void clicked(InputEvent event, float x, float y) {
+                public void clicked (InputEvent event, float x, float y) {
                     EditAccount (name);
                 }
             });
+            final String password = a.Password;
+            PwText.addListener (new ClickListener(){
+                @Override
+                public void clicked (InputEvent event, float x, float y) {
+                    Gdx.app.log(TAG, "password " + password + " clicked for " + name);
+                    CopyToSystemClipboard (password);
+                    }
+                });
 			}
 		ScrollPane scroller = new ScrollPane (table);
 		scrollTable = new Table(skin);
@@ -389,7 +472,7 @@ public class pWallet extends ApplicationAdapter {
 
 	private void SaveAccounts() {
 		Gdx.app.log (TAG, "SaveAccounts: file path = " + firstTextField.getText());
-
+        // TODO: complete this method
 		/* TODO:  test code to be removed
 		Gdx.app.log (TAG, "create: is external storage available = " + Gdx.files.isExternalStorageAvailable());
 		Gdx.app.log (TAG, "create: external storage path root = " + Gdx.files.getExternalStoragePath());
@@ -400,6 +483,13 @@ public class pWallet extends ApplicationAdapter {
 		Gdx.app.log (TAG, "create: text read = " + text);
 		*/
 	    }
+
+
+    private void LogoutUser() {
+        appState = AppStates.LOGGED_OUT;
+        elapsedTimeInSeconds = 0;
+        DisplayPasswordDialog("");
+        }
 
 
 	private void Initialize () {
@@ -431,6 +521,7 @@ public class pWallet extends ApplicationAdapter {
 		button1.setWidth (75);
 		button1.setHeight (40);
 		button1.addListener (new ClickListener() {
+            @Override
 			public void clicked(InputEvent event, float x, float y) {
 				firstTextField = new TextField("", skin);
 				secondTextField = new TextField("", skin);
@@ -469,6 +560,7 @@ public class pWallet extends ApplicationAdapter {
 		button2.setWidth (85);
 		button2.setHeight (40);
 		button2.addListener (new ClickListener() {
+            @Override
 			public void clicked(InputEvent event, float x, float y) {
 				firstTextField = new TextField("", skin);
 				secondTextField = new TextField("", skin);
@@ -503,11 +595,10 @@ public class pWallet extends ApplicationAdapter {
 		button3.setWidth (65);
 		button3.setHeight (40);
 		button3.addListener (new ClickListener() {
+            @Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.app.log (TAG, "Logout button clicked");
-				scrollTable.remove();
-				appState = AppStates.LOGGED_OUT;
-				DisplayPasswordDialog("");
+                LogoutUser();
 				}
 			});
 		button3.setPosition(170, 0);
@@ -518,6 +609,7 @@ public class pWallet extends ApplicationAdapter {
 		button4.setWidth (80);
 		button4.setHeight (40);
 		button4.addListener (new ClickListener() {
+            @Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.app.log (TAG, "Restore Accounts button clicked");
 				firstTextField = new TextField("", skin);
@@ -553,6 +645,7 @@ public class pWallet extends ApplicationAdapter {
 		button5.setWidth (80);
 		button5.setHeight (40);
 		button5.addListener (new ClickListener() {
+            @Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.app.log (TAG, "Save button clicked");
 				firstTextField = new TextField("", skin);
@@ -580,7 +673,16 @@ public class pWallet extends ApplicationAdapter {
 		stage.addActor (button5);
 
 		appState = AppStates.INITILIZED;
+        Gdx.input.setInputProcessor (stage);
 		}
+
+
+    private void DisplayInformationDialog (String title, String text) {
+        Dialog errorDialog = new Dialog(title, skin);
+        errorDialog.text(text);
+        errorDialog.button("OK", skin);
+        errorDialog.show(stage);
+    }
 
 
 	private void ChangeAppPassword() {
@@ -592,11 +694,8 @@ public class pWallet extends ApplicationAdapter {
 				}
 			}
 		else {
-			Dialog errorDialog = new Dialog("Error", skin);
-			errorDialog.text("Password \"" + firstTextField.getText() + "\" not confirmed by \"" +
-							 secondTextField.getText() +"\"");
-			errorDialog.button("OK", skin);
-			errorDialog.show(stage);
+            DisplayInformationDialog ("Error", "Password \"" + firstTextField.getText() +
+                                      "\" not confirmed by \"" + secondTextField.getText() +"\"");
 			}
 		}
 
@@ -615,11 +714,8 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void CheckPassword () {
-        // remove the error text from stage if it exists
-        if (errorText != null) {
-            errorText.remove();
-            errorText = null;
-        }
+        // clear the error text and login dialog from stage
+        loginStage.clear();
         inputPassword = firstTextField.getText();
 		String savedPassword = prefs.getString(PASSWORD_KEY, "Not stored");
 		Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
@@ -633,8 +729,8 @@ public class pWallet extends ApplicationAdapter {
 			else if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
 				Gdx.app.log (TAG, "CheckPassword: password passed");
 				if (appState == AppStates.LOGGED_OUT) {
-					AddAccountsTableToStage();
-					appState = AppStates.LOGGED_IN;
+					appState = AppStates.INITILIZED;
+                    Gdx.input.setInputProcessor (stage);
 					}
 				else {
 					textEncryptor = new BasicTextEncryptor();
@@ -655,7 +751,7 @@ public class pWallet extends ApplicationAdapter {
 		errorText.setColor(Color.RED);
 		errorText.setPosition(60, 200);
 		errorText.setFontScale(2, 2);
-		stage.addActor(errorText);
+		loginStage.addActor(errorText);
 		DisplayPasswordDialog("Incorrect password\n\rplease try again");
 		}
 
