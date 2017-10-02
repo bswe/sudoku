@@ -40,6 +40,7 @@ import org.jasypt.util.text.BasicTextEncryptor;
 import org.jasypt.util.text.StrongTextEncryptor;
 import org.lwjgl.openal.AL;
 
+
 // object to hold account info
 class Account {
 	String Name, UserName, Password;
@@ -53,6 +54,7 @@ class Account {
 		}
  	}
 
+
 // comparator for sorting accounts by their name
 class AccountComparator implements Comparator<Account>{
 	@Override
@@ -61,6 +63,7 @@ class AccountComparator implements Comparator<Account>{
 		}
 	}
 
+
 // Main application class
 public class pWallet extends ApplicationAdapter {
     // TODO: make handling of file i/o and user input more robust and exception safe
@@ -68,7 +71,7 @@ public class pWallet extends ApplicationAdapter {
 	public static final int SCREEN_HEIGHT = 660;
 	private static final String PASSWORD_KEY = "1";
 	private static final String NUMBER_OF_ACCOUNTS_KEY = "2";
-    private static final float INACTIVITY_DURATION = 10f;    // in seconds
+    private static final float INACTIVITY_DURATION = 60f;    // in seconds
 
 	private enum AppStates {PW_REQUIRED, PW_PASSED, INITILIZED, LOGGED_OUT}
 
@@ -102,9 +105,12 @@ public class pWallet extends ApplicationAdapter {
 
     private float elapsedTimeInSeconds = 0;
 
+    private SystemClipboard SCW;
 
-    public pWallet () {
+
+    public pWallet (SystemClipboard scw) {
         super();
+        SCW = scw;
         }
 
 
@@ -393,7 +399,7 @@ public class pWallet extends ApplicationAdapter {
         Dialog confirmationDialog = new Dialog ("Copy Password Confirmation", skin) {
             protected void result (Object object) {
                 Gdx.app.log (TAG, "CopyToSystemClipboard confirmation dialog: chosen = " + object);
-                // TODO; add code to copy to system clipboard using callback passed into constructor
+                SCW.write (S);
                 }
             };
         Table table = new Table();
