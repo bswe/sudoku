@@ -6,6 +6,6 @@ eclipse.project {
     name = appName + "-core"
 }
 dependencies {
-    compile files('build/libs/jasypt-1.9.2.jar')
     compile 'org.lwjgl.lwjgl:lwjgl:2.9.2'
+    compile project(':jasypt-1.9.2')
 }
