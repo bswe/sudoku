@@ -120,7 +120,7 @@ public class pWallet extends ApplicationAdapter {
 		prefs = Gdx.app.getPreferences("bswe-pwallet");
 
 		skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
-        skin.getFont("font").getData().setScale(1f);
+        //skin.getFont("font").getData().setScale(1f);
         stage = new Stage();
         stage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
         loginStage = new Stage();
@@ -131,20 +131,6 @@ public class pWallet extends ApplicationAdapter {
 		}
 
 
-    private Boolean InactivityWatchdogFired() {
-        // log user out if they haven't touched the screen in INACTIVITY_DURATION number of seconds
-        if (Gdx.input.justTouched())
-            elapsedTimeInSeconds = 0;
-        elapsedTimeInSeconds += Gdx.graphics.getRawDeltaTime();
-        if (elapsedTimeInSeconds > INACTIVITY_DURATION) {
-            Gdx.app.log(TAG, "InactivityWatchdogFired: inactivity watchdog fired, logging user out");
-            LogoutUser();
-            return true;
-            }
-        return false;
-        }
-
-
 	@Override
 	public void render () {
 		Gdx.gl.glClearColor (0, 0, 0, 1);
@@ -153,6 +139,7 @@ public class pWallet extends ApplicationAdapter {
 		switch (appState) {
             case PW_REQUIRED:
             case LOGGED_OUT:
+                // logged out, so display login stage
                 loginStage.getViewport().apply();
                 loginStage.act(Gdx.graphics.getDeltaTime());
                 loginStage.draw();
@@ -161,8 +148,10 @@ public class pWallet extends ApplicationAdapter {
                 Initialize();
                 // intentionally drop thru to INITIALIZED case below
             case INITILIZED:
+                // check fo inactivity to potentially log the user out
                 if (InactivityWatchdogFired())
                     return;
+                // still logged in, so display the app's main stage
                 stage.getViewport().apply();
                 stage.act(Gdx.graphics.getDeltaTime());
                 stage.draw();
@@ -182,15 +171,34 @@ public class pWallet extends ApplicationAdapter {
 	public void dispose () {
 		Gdx.app.log (TAG, "dispose:");
 		stage.dispose();
+		loginStage.dispose();
 		skin.dispose();
+		pixmap.dispose();
+        // try to exit with code 0
 		if (Gdx.app.getClass().getName().endsWith ("LwjglApplication"))
 			AL.destroy();
 		System.exit(0);
 		}
 
 
+	private Boolean InactivityWatchdogFired() {
+		// log user out if they haven't touched the screen in INACTIVITY_DURATION number of seconds
+		if (Gdx.input.justTouched())
+			elapsedTimeInSeconds = 0;
+		elapsedTimeInSeconds += Gdx.graphics.getRawDeltaTime();
+		if (elapsedTimeInSeconds > INACTIVITY_DURATION) {
+			Gdx.app.log(TAG, "InactivityWatchdogFired: inactivity watchdog fired, logging user out");
+			LogoutUser();
+			return true;
+		}
+		// watchdog didn't fire
+		return false;
+	}
+
+
 	// load accounts from persistent memory
 	private void LoadAccounts () {
+        // TODO: add error checking and exception handling
 		for (int i=1; i <= numberOfAccounts; i++) {
             String key;
             Integer index = i * 3;
@@ -256,7 +264,8 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void UnPersistAllAccounts () {
-		for (Account a : accounts) {
+        // TODO: add error checking and exception handling
+        for (Account a : accounts) {
             String key;
             Integer index = a.PersistenceIndex * 3;
             key = Integer.toString(index++);
@@ -272,6 +281,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void PersistAllAccounts () {
+        // TODO: add error checking and exception handling
 		Integer i = 0;
 		for (Account a : accounts) {
 			a.PersistenceIndex = ++i;
@@ -289,6 +299,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void AddNewAccount () {
+        // TODO: add error checking and exception handling
 		String accountName = firstTextField.getText();
 		String accountUsername = secondTextField.getText();
 		String accountPassword = thirdTextField.getText();
@@ -324,6 +335,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void DeleteAccount (String accountName) {
+        // TODO: add error checking and exception handling
         final String name = accountName;
         Dialog confirmationDialog = new Dialog ("Delete Account Confirmation", skin) {
             protected void result (Object object) {
@@ -353,6 +365,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void EditAccount (String accountName) {
+        // TODO: add error checking and exception handling
 		final String AccountName = accountName;
 		Gdx.app.log (TAG, "EditAccount: account name = " + accountName);
 		for (Account a : accounts)
@@ -395,6 +408,7 @@ public class pWallet extends ApplicationAdapter {
 
 
     private void CopyToSystemClipboard (String s) {
+        // TODO: add error checking and exception handling
         final String S = s;
         Dialog confirmationDialog = new Dialog ("Copy Password Confirmation", skin) {
             protected void result (Object object) {
@@ -415,6 +429,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void AddAccountsTableToStage () {
+        // TODO: add error checking and exception handling
 		// first make sure accounts are ordered alphabetically by account name
 		Collections.sort (accounts, new AccountComparator());
 		// add scrollable accounts table to stage
@@ -458,6 +473,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void RestoreAccounts() {
+        // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
         FileHandle file = Gdx.files.external (firstTextField.getText());
         String xml = file.readString();
@@ -477,6 +493,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void SaveAccounts() {
+        // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "SaveAccounts: file path = " + firstTextField.getText());
         // TODO: complete this method
 		/* TODO:  test code to be removed
@@ -499,6 +516,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void Initialize () {
+        // TODO: add error checking and exception handling
         accounts = new ArrayList<Account>();
 		// check preferences for any accounts
 		if (prefs.contains(NUMBER_OF_ACCOUNTS_KEY)) {
@@ -707,6 +725,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void PersistPassword () {
+        // TODO: add error checking and exception handling
 		String encryptedPassword = passwordEncryptor.encryptPassword(inputPassword);
 		Gdx.app.log (TAG, "PersistPassword: new encrypted password=(" + inputPassword +
 				" - " + encryptedPassword + ")");
@@ -720,6 +739,7 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void CheckPassword () {
+        // TODO: add error checking and exception handling
         // clear the error text and login dialog from stage
         loginStage.clear();
         inputPassword = firstTextField.getText();
