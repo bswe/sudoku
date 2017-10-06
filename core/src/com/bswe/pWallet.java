@@ -2,7 +2,6 @@ package com.bswe;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Preferences;
@@ -26,10 +25,12 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.Clipboard;
 import com.badlogic.gdx.utils.XmlReader;
 import com.badlogic.gdx.utils.XmlReader.Element;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
+
+import static com.badlogic.gdx.Application.ApplicationType.Android;
+import static com.badlogic.gdx.Application.ApplicationType.Desktop;
 
 import org.jasypt.util.password.StrongPasswordEncryptor;
 
@@ -39,7 +40,6 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.jasypt.util.text.BasicTextEncryptor;
-import org.jasypt.util.text.StrongTextEncryptor;
 import org.lwjgl.openal.AL;
 
 
@@ -109,18 +109,20 @@ public class pWallet extends ApplicationAdapter {
 
     private InputMultiplexer inputMultiplexer;
 
-    private SystemClipboard SCW;
+    private SystemClipboard scWriter;
 
 
     public pWallet (SystemClipboard scw) {
         super();
-        SCW = scw;
+        scWriter = scw;
         }
 
 
 	@Override
 	public void create () {
-		// init preferences for persistent storage
+        Gdx.app.log (TAG, "create: application class = " + Gdx.app.getClass().getName());
+
+        // init preferences for persistent storage
 		prefs = Gdx.app.getPreferences("bswe-pwallet");
 
 		skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
@@ -184,7 +186,7 @@ public class pWallet extends ApplicationAdapter {
 		skin.dispose();
 		pixmap.dispose();
         // try to exit with code 0
-		if (Gdx.app.getClass().getName().endsWith ("LwjglApplication"))
+        if (Gdx.app.getType() == Desktop)
 			AL.destroy();
 		System.exit(0);
 		}
@@ -422,7 +424,7 @@ public class pWallet extends ApplicationAdapter {
         Dialog confirmationDialog = new Dialog ("Copy Password Confirmation", skin) {
             protected void result (Object object) {
                 Gdx.app.log (TAG, "CopyToSystemClipboard confirmation dialog: chosen = " + object);
-                SCW.write (S);
+                scWriter.write (S);
                 }
             };
         Table table = new Table();
@@ -487,7 +489,8 @@ public class pWallet extends ApplicationAdapter {
 		//Gdx.app.log (TAG, "create: is external storage available = " + Gdx.files.isLocalStorageAvailable());
 		//Gdx.app.log (TAG, "create: external storage path root = " + Gdx.files.getLocalStoragePath());
 		//FileHandle file = Gdx.files.external (firstTextField.getText());
-		FileHandle file = Gdx.files.local (firstTextField.getText());
+        //if (Gdx.app.getType() == Android)
+        FileHandle file = Gdx.files.local (firstTextField.getText());
         String xml = file.readString();
         XmlReader reader = new XmlReader();
         Element root = reader.parse (xml);
