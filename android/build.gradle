@@ -1,6 +1,6 @@
 android {
     signingConfigs {
-        config {
+        release {
             keyAlias 'MyAndroidKey'
             keyPassword 'MyKey66'
             storeFile file('C:/Users/wcb/keystores/android.jks')
@@ -36,6 +36,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
     productFlavors {

@@ -3,6 +3,8 @@ package com.bswe;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
@@ -105,6 +107,8 @@ public class pWallet extends ApplicationAdapter {
 
     private float elapsedTimeInSeconds = 0;
 
+    private InputMultiplexer inputMultiplexer;
+
     private SystemClipboard SCW;
 
 
@@ -125,6 +129,11 @@ public class pWallet extends ApplicationAdapter {
         stage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
         loginStage = new Stage();
         loginStage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
+
+        // use input multiplexer to detect keyboard activity for reseting the inactivity watchdog
+        inputMultiplexer = new InputMultiplexer();
+        inputMultiplexer.addProcessor(new MyInputProcessor());
+        inputMultiplexer.addProcessor(stage);
 
 		// display password entry dialog
 		DisplayPasswordDialog("");
@@ -475,7 +484,10 @@ public class pWallet extends ApplicationAdapter {
 	private void RestoreAccounts() {
         // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
-        FileHandle file = Gdx.files.external (firstTextField.getText());
+		//Gdx.app.log (TAG, "create: is external storage available = " + Gdx.files.isLocalStorageAvailable());
+		//Gdx.app.log (TAG, "create: external storage path root = " + Gdx.files.getLocalStoragePath());
+		//FileHandle file = Gdx.files.external (firstTextField.getText());
+		FileHandle file = Gdx.files.local (firstTextField.getText());
         String xml = file.readString();
         XmlReader reader = new XmlReader();
         Element root = reader.parse (xml);
@@ -697,7 +709,7 @@ public class pWallet extends ApplicationAdapter {
 		stage.addActor (button5);
 
 		appState = AppStates.INITILIZED;
-        Gdx.input.setInputProcessor (stage);
+        Gdx.input.setInputProcessor (inputMultiplexer);
 		}
 
 
@@ -756,7 +768,7 @@ public class pWallet extends ApplicationAdapter {
 				Gdx.app.log (TAG, "CheckPassword: password passed");
 				if (appState == AppStates.LOGGED_OUT) {
 					appState = AppStates.INITILIZED;
-                    Gdx.input.setInputProcessor (stage);
+                    Gdx.input.setInputProcessor (inputMultiplexer);
 					}
 				else {
 					textEncryptor = new BasicTextEncryptor();
@@ -780,5 +792,27 @@ public class pWallet extends ApplicationAdapter {
 		loginStage.addActor(errorText);
 		DisplayPasswordDialog("Incorrect password\n\rplease try again");
 		}
+
+
+	public class MyInputProcessor implements InputProcessor {
+        // this input "listener" allows the app to detect keyboard activity so it can reset the
+        // inactivity watchdog timer if the user is detecting typing
+
+		public boolean keyDown (int keycode) {elapsedTimeInSeconds = 0; return false;}
+
+		public boolean keyUp (int keycode) {elapsedTimeInSeconds = 0; return false;}
+
+		public boolean keyTyped (char character) {elapsedTimeInSeconds = 0;	return false;}
+
+		public boolean touchDown (int x, int y, int pointer, int button) {return false;}
+
+		public boolean touchUp (int x, int y, int pointer, int button) {return false;}
+
+		public boolean touchDragged (int x, int y, int pointer) {return false;}
+
+		public boolean mouseMoved (int x, int y) {return false;}
+
+		public boolean scrolled (int amount) {return false;}
+	    }
 
 	}
