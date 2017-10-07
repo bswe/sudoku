@@ -25,6 +25,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.XmlReader;
 import com.badlogic.gdx.utils.XmlReader.Element;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
@@ -484,14 +485,36 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void RestoreAccounts() {
+        String xml;
         // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
-		//Gdx.app.log (TAG, "create: is external storage available = " + Gdx.files.isLocalStorageAvailable());
-		//Gdx.app.log (TAG, "create: external storage path root = " + Gdx.files.getLocalStoragePath());
-		//FileHandle file = Gdx.files.external (firstTextField.getText());
         //if (Gdx.app.getType() == Android)
-        FileHandle file = Gdx.files.local (firstTextField.getText());
-        String xml = file.readString();
+        FileHandle file = Gdx.files.external (firstTextField.getText());
+        try {
+            xml = file.readString();
+            }
+        catch (GdxRuntimeException e) {
+            String cause = e.getCause().getLocalizedMessage();
+            Gdx.app.log (TAG, "RestoreAccounts: File Read Error cause - " + cause);
+            cause = cause.replace(')', ' ');
+            String delimiters = "\\(";
+            String[] subStrings = cause.split(delimiters);
+            Gdx.app.log (TAG, "RestoreAccounts: subStrings size = " + subStrings.length);
+            Table table = new Table(skin);
+            for (String s : subStrings) {
+                Label l = new Label (s + "\n\r", skin);
+                l.setWrap(true);
+                table.add(l).width(225f).align(Align.center);
+                table.row();
+                }
+
+            Dialog editDialog = new Dialog("File Read Error", skin) {};
+            editDialog.getContentTable().add(table).align(Align.center);
+            editDialog.button("OK", "ok");
+            editDialog.scaleBy(.5f);
+            editDialog.show(stage).setX(10f);
+            return;
+            }
         XmlReader reader = new XmlReader();
         Element root = reader.parse (xml);
         Array<Element> items = root.getChildrenByName ("entry");
