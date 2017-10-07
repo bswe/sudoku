@@ -110,12 +110,12 @@ public class pWallet extends ApplicationAdapter {
 
     private InputMultiplexer inputMultiplexer;
 
-    private SystemClipboard scWriter;
+    private SystemAccess systemAccess;
 
 
-    public pWallet (SystemClipboard scw) {
+    public pWallet (SystemAccess sa) {
         super();
-        scWriter = scw;
+        systemAccess = sa;
         }
 
 
@@ -425,7 +425,7 @@ public class pWallet extends ApplicationAdapter {
         Dialog confirmationDialog = new Dialog ("Copy Password Confirmation", skin) {
             protected void result (Object object) {
                 Gdx.app.log (TAG, "CopyToSystemClipboard confirmation dialog: chosen = " + object);
-                scWriter.write (S);
+                systemAccess.WriteClipboard (S);
                 }
             };
         Table table = new Table();
@@ -488,7 +488,6 @@ public class pWallet extends ApplicationAdapter {
         String xml;
         // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
-        //if (Gdx.app.getType() == Android)
         FileHandle file = Gdx.files.external (firstTextField.getText());
         try {
             xml = file.readString();
@@ -674,7 +673,8 @@ public class pWallet extends ApplicationAdapter {
             @Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.app.log (TAG, "Restore Accounts button clicked");
-				firstTextField = new TextField("", skin);
+                systemAccess.RequestExternalAccess();
+                firstTextField = new TextField("", skin);
 				Table table = new Table(skin);
 				table.add("File Path ").align(Align.right);
 				table.add(firstTextField);
