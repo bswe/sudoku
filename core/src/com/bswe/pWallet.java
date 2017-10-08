@@ -28,13 +28,15 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.XmlReader;
 import com.badlogic.gdx.utils.XmlReader.Element;
+import com.badlogic.gdx.utils.XmlWriter;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 
-import static com.badlogic.gdx.Application.ApplicationType.Android;
 import static com.badlogic.gdx.Application.ApplicationType.Desktop;
 
 import org.jasypt.util.password.StrongPasswordEncryptor;
 
+import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -182,15 +184,27 @@ public class pWallet extends ApplicationAdapter {
 	@Override
 	public void dispose () {
 		Gdx.app.log (TAG, "dispose:");
-		stage.dispose();
-		loginStage.dispose();
-		skin.dispose();
-		pixmap.dispose();
-        // try to exit with code 0
-        if (Gdx.app.getType() == Desktop)
-			AL.destroy();
+		try {
+			stage.dispose();
+			loginStage.dispose();
+			skin.dispose();
+			pixmap.dispose();
+			// try to exit with code 0
+			if (Gdx.app.getType() == Desktop)
+				AL.destroy();
+			}
+		catch (Exception e) {
+			Gdx.app.log (TAG, "dispose: exception raised - " + e.getLocalizedMessage());
+			}
 		System.exit(0);
 		}
+
+
+    @Override
+    public void pause () {
+        Gdx.app.log (TAG, "pause:");
+        LogoutUser();
+        }
 
 
 	private Boolean InactivityWatchdogFired() {
@@ -477,43 +491,46 @@ public class pWallet extends ApplicationAdapter {
 		scrollTable = new Table(skin);
 		scrollTable.setBounds(0, 40, SCREEN_WIDTH, SCREEN_HEIGHT-40);
 		scrollTable.align(Align.left);
-		scrollTable.add (scroller);
+        // force scroller to fill the scroll table so user can touch any area and get it to scroll
+		scrollTable.add (scroller).expand().fill();
 		scrollTable.setBackground(new TextureRegionDrawable(new TextureRegion(new Texture(pixmap))));
 		//sTable.debugAll();
 		stage.addActor (scrollTable);
 		}
 
 
+    private void DisplayFileError (String accessType, String cause) {
+        cause = cause.replace(')', ' ');
+        String delimiters = "\\(";
+        String[] subStrings = cause.split(delimiters);
+        Table table = new Table(skin);
+        for (String s : subStrings) {
+            Label l = new Label (s + "\n\r", skin);
+            l.setWrap(true);
+            table.add(l).width(225f).align(Align.center);
+            table.row();
+        }
+        Dialog editDialog = new Dialog ("File " + accessType + " Error", skin);
+        editDialog.getContentTable().add(table).align(Align.center);
+        editDialog.button("OK", "ok");
+        editDialog.scaleBy(.5f);
+        editDialog.show(stage).setX(10f);
+        }
+
+
 	private void RestoreAccounts() {
         String xml;
-        // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
         FileHandle file = Gdx.files.external (firstTextField.getText());
         try {
             xml = file.readString();
             }
         catch (GdxRuntimeException e) {
-            String cause = e.getCause().getLocalizedMessage();
-            Gdx.app.log (TAG, "RestoreAccounts: File Read Error cause - " + cause);
-            cause = cause.replace(')', ' ');
-            String delimiters = "\\(";
-            String[] subStrings = cause.split(delimiters);
-            Gdx.app.log (TAG, "RestoreAccounts: subStrings size = " + subStrings.length);
-            Table table = new Table(skin);
-            for (String s : subStrings) {
-                Label l = new Label (s + "\n\r", skin);
-                l.setWrap(true);
-                table.add(l).width(225f).align(Align.center);
-                table.row();
-                }
-
-            Dialog editDialog = new Dialog("File Read Error", skin) {};
-            editDialog.getContentTable().add(table).align(Align.center);
-            editDialog.button("OK", "ok");
-            editDialog.scaleBy(.5f);
-            editDialog.show(stage).setX(10f);
+            Gdx.app.log (TAG, "RestoreAccounts: File Read Error cause - " + e.getCause().getLocalizedMessage());
+            DisplayFileError ("Read", e.getCause().getLocalizedMessage());
             return;
             }
+        // TODO: add error checking and exception handling
         XmlReader reader = new XmlReader();
         Element root = reader.parse (xml);
         Array<Element> items = root.getChildrenByName ("entry");
@@ -532,16 +549,30 @@ public class pWallet extends ApplicationAdapter {
 	private void SaveAccounts() {
         // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "SaveAccounts: file path = " + firstTextField.getText());
-        // TODO: complete this method
-		/* TODO:  test code to be removed
-		Gdx.app.log (TAG, "create: is external storage available = " + Gdx.files.isExternalStorageAvailable());
-		Gdx.app.log (TAG, "create: external storage path root = " + Gdx.files.getExternalStoragePath());
-		FileHandle file = Gdx.files.external("MyTestFile");
-		file.writeString("My god, it's full of stars", false);
-		FileHandle file = Gdx.files.external("Download/My Preferences");   // for android
-		String text = file.readString();
-		Gdx.app.log (TAG, "create: text read = " + text);
-		*/
+        FileHandle file = Gdx.files.external (firstTextField.getText());
+        Writer writer = file.writer(false);
+        XmlWriter xml = new XmlWriter(writer);
+        try {
+            // TODO: complete this method by creating the xml to write
+            /*
+            xml.element("meow")
+                .attribute("moo", "cow")
+                .element("child")
+                    .attribute("moo", "cow")
+                    .element("child")
+                    .attribute("moo", "cow")
+                    .text("XML is like violence. If it doesn't solve your problem, you're not using enough of it.")
+                    .pop()
+                .pop()
+            .pop();
+            */
+            writer.close();
+            }
+        catch (IOException e) {
+            Gdx.app.log (TAG, "SaveAccounts: File Write Error cause - " + e.getCause().getLocalizedMessage());
+            DisplayFileError ("Write", e.getCause().getLocalizedMessage());
+            return;
+            }
 	    }
 
 
@@ -673,6 +704,7 @@ public class pWallet extends ApplicationAdapter {
             @Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.app.log (TAG, "Restore Accounts button clicked");
+                // try to get external access if it hasn't already been granted
                 systemAccess.RequestExternalAccess();
                 firstTextField = new TextField("", skin);
 				Table table = new Table(skin);
@@ -710,6 +742,8 @@ public class pWallet extends ApplicationAdapter {
             @Override
 			public void clicked(InputEvent event, float x, float y) {
 				Gdx.app.log (TAG, "Save button clicked");
+                // try to get external access if it hasn't already been granted
+                systemAccess.RequestExternalAccess();
 				firstTextField = new TextField("", skin);
 				Table table = new Table(skin);
 				table.add("File Path ").align(Align.right);
