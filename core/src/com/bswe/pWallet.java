@@ -245,6 +245,8 @@ public class pWallet extends ApplicationAdapter {
 
 	private void DisplayPasswordDialog (String msg) {
 		firstTextField = new TextField("", skin);
+        firstTextField.setPasswordMode(true);
+        firstTextField.setPasswordCharacter('*');
 		Table table = new Table();
 		table.add (firstTextField);
 		Dialog editDialog = new Dialog ("enter password", skin) {
@@ -546,30 +548,27 @@ public class pWallet extends ApplicationAdapter {
 	    }
 
 
-	private void SaveAccounts() {
+	private void ArchiveAccounts() {
         // TODO: add error checking and exception handling
-		Gdx.app.log (TAG, "SaveAccounts: file path = " + firstTextField.getText());
+		Gdx.app.log (TAG, "ArchiveAccounts: file path = " + firstTextField.getText());
         FileHandle file = Gdx.files.external (firstTextField.getText());
         Writer writer = file.writer(false);
         XmlWriter xml = new XmlWriter(writer);
         try {
+            // writer the xml header stuff
+            writer.write ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n\r");
+            writer.write ("<!DOCTYPE properties SYSTEM \"http://java.sun.com/dtd/properties.dtd\">\n\r");
             // TODO: complete this method by creating the xml to write
-            /*
-            xml.element("meow")
-                .attribute("moo", "cow")
-                .element("child")
-                    .attribute("moo", "cow")
-                    .element("child")
-                    .attribute("moo", "cow")
-                    .text("XML is like violence. If it doesn't solve your problem, you're not using enough of it.")
+            xml.element("meow").attribute("moo", "cow")
+                .element("child").attribute("moo", "cow1")
+                    .element("child").attribute("moo", "cow2").text("XML is like violence. If it doesn't solve your problem, you're not using enough of it.")
                     .pop()
                 .pop()
             .pop();
-            */
             writer.close();
             }
         catch (IOException e) {
-            Gdx.app.log (TAG, "SaveAccounts: File Write Error cause - " + e.getCause().getLocalizedMessage());
+            Gdx.app.log (TAG, "ArchiveAccounts: File Write Error cause - " + e.getCause().getLocalizedMessage());
             DisplayFileError ("Write", e.getCause().getLocalizedMessage());
             return;
             }
@@ -734,26 +733,26 @@ public class pWallet extends ApplicationAdapter {
 		button4.setPosition(240, 0);
 		stage.addActor (button4);
 
-		// create the "Save Accounts" button
-		final TextButton button5 = new TextButton ("Save\nAccounts", skin, "default");
+		// create the "Archive Accounts" button
+		final TextButton button5 = new TextButton ("Archive\nAccounts", skin, "default");
 		button5.setWidth (80);
 		button5.setHeight (40);
 		button5.addListener (new ClickListener() {
             @Override
 			public void clicked(InputEvent event, float x, float y) {
-				Gdx.app.log (TAG, "Save button clicked");
+				Gdx.app.log (TAG, "Archive button clicked");
                 // try to get external access if it hasn't already been granted
                 systemAccess.RequestExternalAccess();
 				firstTextField = new TextField("", skin);
 				Table table = new Table(skin);
 				table.add("File Path ").align(Align.right);
 				table.add(firstTextField);
-				Dialog editDialog = new Dialog("Save Accounts", skin) {
+				Dialog editDialog = new Dialog("Archive Accounts", skin) {
 					protected void result(Object object) {
-						Gdx.app.log (TAG, "Save Accounts dialog: chosen = " + object);
-						//Gdx.app.log (TAG, "Save Accounts dialog: file path = " + firstTextField.getText());
+						Gdx.app.log (TAG, "Archive Accounts dialog: chosen = " + object);
+						//Gdx.app.log (TAG, "Archive Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals("ok"))
-							SaveAccounts();
+							ArchiveAccounts();
                         Gdx.input.setOnscreenKeyboardVisible(false);
 						}
 					};
