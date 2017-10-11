@@ -245,15 +245,17 @@ public class pWallet extends ApplicationAdapter {
 
 	private void DisplayPasswordDialog (String msg) {
 		firstTextField = new TextField("", skin);
+		String title = "Create Password";
         String savedPassword = prefs.getString(PASSWORD_KEY, "Not stored");
         if (!savedPassword.equals("Not stored")) {
             // if password exists then hide password entry, if it doesn't then display what's entered
             firstTextField.setPasswordMode(true);
             firstTextField.setPasswordCharacter('*');
+			title = "Enter Password";
             }
 		Table table = new Table();
 		table.add (firstTextField);
-		Dialog editDialog = new Dialog ("enter password", skin) {
+		Dialog editDialog = new Dialog (title, skin) {
 			protected void result (Object object) {
 				//Gdx.app.log (TAG, "DisplayPasswordDialog dialog: chosen = " + object);
 				//Gdx.app.log (TAG, "DisplayPasswordDialog dialog: password = " + passwordTextField.getText());
