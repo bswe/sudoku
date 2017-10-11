@@ -234,7 +234,7 @@ public class pWallet extends ApplicationAdapter {
             key = Integer.toString(index++);
             String userName = prefs.getString(key, "");
 			userName = textEncryptor.decrypt(userName);
-            key = Integer.toString(index++);
+            key = Integer.toString(index);
             String password = prefs.getString(key, "");
 			password = textEncryptor.decrypt(password);
 			Account a = new Account(i, name, userName, password);
@@ -246,9 +246,8 @@ public class pWallet extends ApplicationAdapter {
 	private void DisplayPasswordDialog (String msg) {
 		firstTextField = new TextField("", skin);
 		String title = "Create Password";
-        String savedPassword = prefs.getString(PASSWORD_KEY, "Not stored");
-        if (!savedPassword.equals("Not stored")) {
-            // if password exists then hide password entry, if it doesn't then display what's entered
+        if (prefs.contains(PASSWORD_KEY)) {
+            // if password exists then hide password entry, if not then display what's entered
             firstTextField.setPasswordMode(true);
             firstTextField.setPasswordCharacter('*');
 			title = "Enter Password";
@@ -314,18 +313,6 @@ public class pWallet extends ApplicationAdapter {
 		}
 
 
-	private void PersistAllAccounts () {
-        // TODO: add error checking and exception handling
-		Integer i = 0;
-		for (Account a : accounts) {
-			a.PersistenceIndex = ++i;
-			PersistAccount(a);
-			}
-		prefs.putString(NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString(i)));
-		prefs.flush();
-	}
-
-
 	private void RedisplayAccountsTable() {
 		scrollTable.remove();
 		AddAccountsTableToStage();
@@ -380,9 +367,16 @@ public class pWallet extends ApplicationAdapter {
                             UnPersistAllAccounts();
                             accounts.remove (a);
                             numberOfAccounts--;
-                            PersistAllAccounts();
+                            Integer i = 0;
+                            for (Account A : accounts) {
+                                A.PersistenceIndex = ++i;
+                                PersistAccount(A);
+                                }
+                            prefs.putString(NUMBER_OF_ACCOUNTS_KEY,
+                                            textEncryptor.encrypt (Integer.toString(numberOfAccounts)));
+                            prefs.flush();
                             break;
-                        }
+                            }
                 RedisplayAccountsTable();
                 }
             };
@@ -554,24 +548,60 @@ public class pWallet extends ApplicationAdapter {
 	    }
 
 
+    private boolean XmlWriteEntry (XmlWriter e, String k, String s) {
+        try {
+            XmlWriter entry = e.element("entry");
+            entry.attribute("key", k);
+            entry.text(s);
+            entry.pop();
+            return true;
+        }
+        catch (IOException ex) {
+            Gdx.app.log (TAG, "XmlWriteEntry: File Write Error cause - " + ex.getCause().getLocalizedMessage());
+            DisplayFileError ("Write", ex.getCause().getLocalizedMessage());
+            return false;
+        }
+
+        }
+
+
+    private boolean XmlWriteAccount (XmlWriter e, Integer i) {
+        Gdx.app.log (TAG, "XmlWriteAccount: i=" + i);
+        String key = Integer.toString (i);
+        String s = prefs.getString (key, "");
+        return XmlWriteEntry (e, key, s);
+        }
+
+
 	private void ArchiveAccounts() {
         // TODO: add error checking and exception handling
 		Gdx.app.log (TAG, "ArchiveAccounts: file path = " + firstTextField.getText());
         FileHandle file = Gdx.files.external (firstTextField.getText());
-        Writer writer = file.writer(false);
-        XmlWriter xml = new XmlWriter(writer);
+        Writer writer = file.writer (false);
+        XmlWriter top = new XmlWriter (writer);
         try {
-            // writer the xml header stuff
+            // write the xml header stuff
             writer.write ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n\r");
             writer.write ("<!DOCTYPE properties SYSTEM \"http://java.sun.com/dtd/properties.dtd\">\n\r");
-            // TODO: complete this method by creating the xml to write
-            xml.element("meow").attribute("moo", "cow")
-                .element("child").attribute("moo", "cow1")
-                    .element("child").attribute("moo", "cow2").text("XML is like violence. If it doesn't solve your problem, you're not using enough of it.")
-                    .pop()
-                .pop()
-            .pop();
-            writer.close();
+            XmlWriter propeties = top.element ("properties");
+            String s = prefs.getString(PASSWORD_KEY);
+            XmlWriteEntry (propeties, PASSWORD_KEY, s);
+            s = prefs.getString(NUMBER_OF_ACCOUNTS_KEY);
+            XmlWriteEntry (propeties, NUMBER_OF_ACCOUNTS_KEY, s);
+            for (int i=1; i <= numberOfAccounts; i++) {
+                Integer index = i * 3;
+                // write account name
+                if (!XmlWriteAccount (propeties, index++))
+                    return;
+                // write account username
+               if (!XmlWriteAccount (propeties, index++))
+                    return;
+                // write account password
+               if (!XmlWriteAccount (propeties, index))
+                    return;
+                }
+            propeties.pop();
+            top.close();
             }
         catch (IOException e) {
             Gdx.app.log (TAG, "ArchiveAccounts: File Write Error cause - " + e.getCause().getLocalizedMessage());
@@ -810,7 +840,7 @@ public class pWallet extends ApplicationAdapter {
 		prefs.flush();
 
 		textEncryptor = new BasicTextEncryptor();
-		// TODO: make this textEncryptor password more robust
+		// TODO: make this textEncryptor password more robust; make its own routine
 		textEncryptor.setPassword(inputPassword);
 		}
 
@@ -820,31 +850,34 @@ public class pWallet extends ApplicationAdapter {
         // clear the error text and login dialog from stage
         loginStage.clear();
         inputPassword = firstTextField.getText();
-		String savedPassword = prefs.getString(PASSWORD_KEY, "Not stored");
-		Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
 		try {
-			if (savedPassword.equals("Not stored")) {
+            if (!prefs.contains(PASSWORD_KEY)) {
 				// initialize the app to this new password
 				PersistPassword();
 				appState = AppStates.PW_PASSED;
 				return;
 				}
-			else if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
-				Gdx.app.log (TAG, "CheckPassword: password passed");
-				if (appState == AppStates.LOGGED_OUT) {
-					appState = AppStates.INITILIZED;
-                    Gdx.input.setInputProcessor (inputMultiplexer);
-					}
-				else {
-					textEncryptor = new BasicTextEncryptor();
-					textEncryptor.setPassword(inputPassword);
-					appState = AppStates.PW_PASSED;
-					}
-				return;
-				}
 			else {
-				Gdx.app.log (TAG, "CheckPassword: password failed)");
-				}
+                String savedPassword = prefs.getString(PASSWORD_KEY);
+                Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
+                if (passwordEncryptor.checkPassword(inputPassword, savedPassword)) {
+                    Gdx.app.log (TAG, "CheckPassword: password passed");
+                    if (appState == AppStates.LOGGED_OUT) {
+                        appState = AppStates.INITILIZED;
+                        Gdx.input.setInputProcessor (inputMultiplexer);
+                        }
+                    else {
+                        textEncryptor = new BasicTextEncryptor();
+                        // TODO: make this textEncryptor password more robust; make its own routine
+                        textEncryptor.setPassword(inputPassword);
+                        appState = AppStates.PW_PASSED;
+                        }
+                    return;
+                    }
+                else {
+                    Gdx.app.log (TAG, "CheckPassword: password failed)");
+                    }
+                }
 			}
 		catch (Exception e) {
 			Gdx.app.log (TAG, "CheckPassword: password failed - exception caught)");
