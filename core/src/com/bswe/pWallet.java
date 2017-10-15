@@ -497,7 +497,6 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void AddAccountsTableToStage () {
-        // TODO: add error checking and exception handling
 		// first make sure accounts are ordered alphabetically by account name
 		Collections.sort (accounts, new AccountComparator());
 		// add scrollable accounts table to stage
@@ -506,13 +505,6 @@ public class pWallet extends ApplicationAdapter {
 			final TextButton button = new TextButton (a.AccountName, skin);
             button.getLabel().setFontScale (1.25f, 1.25f);
 			table.add (button).align (Align.right);
-			final Label UnText = new Label (a.UserName, skin);
-            UnText.setFontScale (1.25f);
-			table.add (UnText).align (Align.left).pad (10);
-			final Label PwText = new Label (a.Password, skin);
-            PwText.setFontScale (1.25f);
-            table.add (PwText).align (Align.left).pad (10);
-			table.row();
             final String name = a.AccountName;
             button.addListener (new ClickListener() {
                 @Override
@@ -520,6 +512,12 @@ public class pWallet extends ApplicationAdapter {
                     EditAccount (name);
                 }
             });
+			final Label UnText = new Label (a.UserName, skin);
+            UnText.setFontScale (1.25f);
+			table.add (UnText).align (Align.left).pad (10);
+			final Label PwText = new Label (a.Password, skin);
+            PwText.setFontScale (1.25f);
+            table.add (PwText).align (Align.left).pad (10);
             final String password = a.Password;
             PwText.addListener (new ClickListener(){
                 @Override
@@ -528,6 +526,7 @@ public class pWallet extends ApplicationAdapter {
                     CopyToSystemClipboard (password);
                     }
                 });
+            table.row();
 			}
 		ScrollPane scroller = new ScrollPane (table);
 		scrollTable = new Table (skin);
@@ -562,8 +561,8 @@ public class pWallet extends ApplicationAdapter {
 	private void RestoreAccounts() {
         String xml;
 		//Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
-        FileHandle file = Gdx.files.external (firstTextField.getText());
         try {
+            FileHandle file = Gdx.files.external (firstTextField.getText());
             xml = file.readString();
             }
         catch (GdxRuntimeException e) {
@@ -571,7 +570,6 @@ public class pWallet extends ApplicationAdapter {
             DisplayFileError ("Read", e.getCause().getLocalizedMessage());
             return;
             }
-        // TODO: add error checking and exception handling
         XmlReader reader = new XmlReader();
         Element root = reader.parse (xml);
         Array<Element> items = root.getChildrenByName ("entry");
@@ -581,15 +579,16 @@ public class pWallet extends ApplicationAdapter {
             prefs.putString(item.getAttribute("key"), item.getText());
             }
         prefs.flush();
+        // force the app restart and the user to re-login using the password in the restored accounts
         stage.clear();
         appState = AppStates.PW_REQUIRED;
         DisplayPasswordDialog ("");
 	    }
 
 
-    private boolean XmlWriteEntry (XmlWriter e, String k, String s) {
+    private boolean XmlWriteEntry (XmlWriter parent, String k, String s) {
         try {
-            XmlWriter entry = e.element ("entry");
+            XmlWriter entry = parent.element ("entry");
             entry.attribute ("key", k);
             entry.text(s);
             entry.pop();
@@ -604,21 +603,20 @@ public class pWallet extends ApplicationAdapter {
         }
 
 
-    private boolean XmlWriteAccount (XmlWriter e, Integer i) {
-        //Gdx.app.log (TAG, "XmlWriteAccount: i=" + i);
-        String key = Integer.toString (i);
+    private boolean XmlWriteAccount (XmlWriter parent, Integer k) {
+        //Gdx.app.log (TAG, "XmlWriteAccount: k=" + k);
+        String key = Integer.toString (k);
         String s = prefs.getString (key, "");
-        return XmlWriteEntry (e, key, s);
+        return XmlWriteEntry (parent, key, s);
         }
 
 
 	private void ArchiveAccounts() {
-        // TODO: add error checking and exception handling
 		//Gdx.app.log (TAG, "ArchiveAccounts: file path = " + firstTextField.getText());
-        FileHandle file = Gdx.files.external (firstTextField.getText());
-        Writer writer = file.writer (false);
-        XmlWriter top = new XmlWriter (writer);
         try {
+            FileHandle file = Gdx.files.external (firstTextField.getText());
+            Writer writer = file.writer (false);
+            XmlWriter top = new XmlWriter (writer);
             // write the xml header stuff
             writer.write ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n\r");
             writer.write ("<!DOCTYPE properties SYSTEM \"http://java.sun.com/dtd/properties.dtd\">\n\r");
@@ -651,14 +649,13 @@ public class pWallet extends ApplicationAdapter {
 
 
     private void LogoutUser() {
+        // force a logout of the user
         appState = AppStates.LOGGED_OUT;
-        elapsedTimeInSeconds = 0;
         DisplayPasswordDialog ("");
         }
 
 
 	private void Initialize () {
-        // TODO: add error checking and exception handling
         accounts = new ArrayList<Account>();
 		// check preferences for any accounts
 		if (prefs.contains(NUMBER_OF_ACCOUNTS_KEY)) {
@@ -871,7 +868,6 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void PersistPassword () {
-        // TODO: add error checking and exception handling
 		String encryptedPassword = passwordEncryptor.encryptPassword (inputPassword);
 		//Gdx.app.log (TAG, "PersistPassword: new encrypted password=(" + inputPassword +
 		//		" - " + encryptedPassword + ")");
@@ -885,27 +881,32 @@ public class pWallet extends ApplicationAdapter {
 
 
 	private void CheckPassword () {
-        // TODO: add error checking and exception handling
         // clear the error text and login dialog from stage
         loginStage.clear();
         inputPassword = firstTextField.getText();
 		try {
             if (!prefs.contains (PASSWORD_KEY)) {
-				// initialize the app to this new password
+				// first time app has been run so initialize the app to this new password
 				PersistPassword();
 				appState = AppStates.PW_PASSED;
 				return;
 				}
 			else {
+                // normal login so check the password
                 String savedPassword = prefs.getString(PASSWORD_KEY);
                 //Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
                 if (passwordEncryptor.checkPassword (inputPassword, savedPassword)) {
                     //Gdx.app.log (TAG, "CheckPassword: password passed");
+                    // reset inactivity watchdog timer
+                    elapsedTimeInSeconds = 0;
                     if (appState == AppStates.LOGGED_OUT) {
+                        // already been initialized, so just jump to that state
                         appState = AppStates.INITIALIZED;
                         Gdx.input.setInputProcessor (inputMultiplexer);
                         }
                     else {
+                        // initial password entry at app startup or after restoration of archive,
+                        // so init the text encryptor and force renderer to call init method
                         textEncryptor = new BasicTextEncryptor();
                         // TODO: make this textEncryptor password more robust; make its own routine
                         textEncryptor.setPassword (inputPassword);
