@@ -856,6 +856,7 @@ public class pWallet extends ApplicationAdapter {
         if (firstTextField.getText().equals (secondTextField.getText())) {
 			inputPassword = firstTextField.getText();
 			PersistPassword();
+            prefs.putString (NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString (numberOfAccounts)));
 			for (Account a : accounts) {
 				PersistAccount (a);
 				}
@@ -875,7 +876,7 @@ public class pWallet extends ApplicationAdapter {
 		prefs.flush();
 
 		textEncryptor = new BasicTextEncryptor();
-		// TODO: make this textEncryptor password more robust; make its own routine
+		// TODO: make this textEncryptor password more robust; make its own routine?
 		textEncryptor.setPassword (inputPassword);
 		}
 
@@ -908,7 +909,7 @@ public class pWallet extends ApplicationAdapter {
                         // initial password entry at app startup or after restoration of archive,
                         // so init the text encryptor and force renderer to call init method
                         textEncryptor = new BasicTextEncryptor();
-                        // TODO: make this textEncryptor password more robust; make its own routine
+                        // TODO: make this textEncryptor password more robust; make its own routine?
                         textEncryptor.setPassword (inputPassword);
                         appState = AppStates.PW_PASSED;
                         }

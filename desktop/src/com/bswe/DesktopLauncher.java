@@ -3,8 +3,6 @@ package com.bswe;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
-import com.bswe.pWallet;
-import com.bswe.SystemAccess;
 
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
