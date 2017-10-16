@@ -96,7 +96,10 @@ public class pWallet extends ApplicationAdapter {
 
 	private String inputPassword = "";
 
-	// used for user input from dialog boxes
+    // used for user input for login dialog since logout can happen at any time even when other
+    // dialog boxes are being displayed, so this dialog cannot share the other fields below
+    private TextField passwordTextField;
+    // used for user input from all dialog boxes except login dialog
     private TextField firstTextField;
 	private TextField secondTextField;
 	private TextField thirdTextField;
@@ -270,16 +273,16 @@ public class pWallet extends ApplicationAdapter {
 
 	private void DisplayPasswordDialog (String msg) {
         // the msg parameter is for retrying failed password checks, it should be an empty string otherwise
-		firstTextField = new TextField ("", skin);
+        passwordTextField = new TextField ("", skin);
 		String title = "Create Password";
         if (prefs.contains (PASSWORD_KEY)) {
             // if password exists then hide password entry, if not then display what's entered
-            firstTextField.setPasswordMode (true);
-            firstTextField.setPasswordCharacter ('*');
+            passwordTextField.setPasswordMode (true);
+            passwordTextField.setPasswordCharacter ('*');
 			title = "Enter Password";
             }
 		Table table = new Table();
-		table.add (firstTextField);
+		table.add (passwordTextField);
 		Dialog editDialog = new Dialog (title, skin) {
 			protected void result (Object object) {
 				CheckPassword();
@@ -298,7 +301,7 @@ public class pWallet extends ApplicationAdapter {
 		editDialog.getContentTable().add (table);
         editDialog.scaleBy (.5f);
         editDialog.show(loginStage).setX (70f);
-        loginStage.setKeyboardFocus (firstTextField);
+        loginStage.setKeyboardFocus (passwordTextField);
         Gdx.input.setInputProcessor (loginStage);
 		}
 
@@ -884,7 +887,7 @@ public class pWallet extends ApplicationAdapter {
 	private void CheckPassword () {
         // clear the error text and login dialog from stage
         loginStage.clear();
-        inputPassword = firstTextField.getText();
+        inputPassword = passwordTextField.getText();
 		try {
             if (!prefs.contains (PASSWORD_KEY)) {
 				// first time app has been run so initialize the app to this new password
