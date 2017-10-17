@@ -202,10 +202,10 @@ public class pWallet extends ApplicationAdapter {
 	public void dispose () {
 		//Gdx.app.log (TAG, "dispose:");
 		try {
-			stage.dispose();
-			loginStage.dispose();
-			skin.dispose();
-			pixmap.dispose();
+			if (stage != null) stage.dispose();
+			if (loginStage != null ) loginStage.dispose();
+			if (skin != null) skin.dispose();
+			if (pixmap != null) pixmap.dispose();
 			// try to exit with code 0
 			if (Gdx.app.getType() == Desktop)
 				AL.destroy();
