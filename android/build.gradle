@@ -30,7 +30,8 @@ android {
         minSdkVersion 20
         targetSdkVersion 26
         versionCode 5
-        versionName "1.4"
+        versionName "$version"
+        setProperty("archivesBaseName", "$appName-$versionName")
     }
     buildTypes {
         release {
