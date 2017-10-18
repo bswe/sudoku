@@ -1,0 +1,13 @@
+{
+  "platform": "windows64",
+  "jdk": "c:/Program Files/Java/jdk1.8.0_144",
+  "executable": "pwallet",
+  "classpath": [
+    "desktop/build/libs/pWallet-1.4.jar"
+  ],
+  "mainclass": "com.bswe.DesktopLauncher",
+  "vmargs": [],
+  "resources": [],
+  "minimizejre": "soft",
+  "output": "c:/Users/wcb/pwallet"
+}
