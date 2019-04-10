@@ -18,15 +18,14 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
-import com.badlogic.gdx.scenes.scene2d.ui.ButtonGroup;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.XmlReader;
@@ -47,6 +46,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.prefs.InvalidPreferencesFormatException;
 import java.util.Vector;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Arrays;
 
 import org.jasypt.util.text.BasicTextEncryptor;
 import org.lwjgl.openal.AL;
@@ -136,21 +138,21 @@ class Grid extends Actor {
 
 class cell {
     int rowIndex, columnIndex, size, value = -1;
-    Color color;
-    String name;
+   String name;
     Vector row, column, block;
     Label label;
+    LabelStyle defaultStyle;
 
-    cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Color color, Label l) {
+    cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Label l) {
         this.rowIndex = rowIndex;
         this.columnIndex = columnIndex;
-        this.color = color;
         this.row = row;
         this.column = column;
         this.block = block;
         this.size = 44;     // TODO: make this a constant and add method to change size
         name = Integer.toString(rowIndex) + "," + Integer.toString(columnIndex);
         label = l;
+        defaultStyle = l.getStyle();
         setValue(0);
         }
 
@@ -183,9 +185,15 @@ class cell {
 
     public int getSize() {
         return size;
-        }
-
     }
+
+    public void setStyle(LabelStyle style) { label.setStyle(style); }
+
+    public void unsetStyle() {
+        label.setStyle(defaultStyle);
+    }
+
+}
 
 
 // Main application class
@@ -252,6 +260,8 @@ public class sudoku extends ApplicationAdapter {
 
     private cell selectedCell = null;
 
+    LabelStyle style1, style2, style3, style4;
+
 
     public sudoku (SystemAccess sa) {
         super();
@@ -279,8 +289,30 @@ public class sudoku extends ApplicationAdapter {
         inputMultiplexer.addProcessor (new MyInputProcessor());  // to detect keyboard activity
         inputMultiplexer.addProcessor (stage);
 
-		// display password entry dialog
-		//DisplayPasswordDialog ("");
+        Label temp = new Label("", skin);
+        Pixmap Background1 = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        Background1.setColor(new Color(.8f, .8f, .8f, 1));
+        Background1.fill();
+        style1 = new LabelStyle(temp.getStyle());
+        style1.background = new Image(new Texture(Background1)).getDrawable();
+
+        Pixmap Background2 = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        Background2.setColor(new Color(1, 1, 1, 1));
+        Background2.fill();
+        style2 = new LabelStyle(temp.getStyle());
+        style2.background = new Image(new Texture(Background2)).getDrawable();
+
+        Pixmap Background3 = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        Background3.setColor(new Color(.9f, .9f, .9f, 1));
+        Background3.fill();
+        style3 = new LabelStyle(temp.getStyle());
+        style3.background = new Image(new Texture(Background3)).getDrawable();
+
+        Pixmap Background4 = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        Background4.setColor(new Color(.85f, 1, .85f, 1));
+        Background4.fill();
+        style4 = new LabelStyle(temp.getStyle());
+        style4.background = new Image(new Texture(Background4)).getDrawable();
 		}
 
 
@@ -365,7 +397,10 @@ public class sudoku extends ApplicationAdapter {
         if (selectedCell == c)
             return;
         // TODO: change focus highlighting on board
+        if (selectedCell != null)
+            selectedCell.unsetStyle();
         selectedCell = c;
+        c.setStyle(style4);
         }
 
 
@@ -419,18 +454,35 @@ public class sudoku extends ApplicationAdapter {
     private void AddBoardToStage () {
         cell c;
         Vector block;
+        Color color;
+        Set<Integer> cornerBlocks = new HashSet(Arrays.asList(1, 3, 7, 9));
         int br, bc, ff, b;
-        Table table = new Table();
+
+        Table table = new Table(skin);
         for (int i=0; i < 9; i++) {
             for (int j=0; j < 9; j++) {
+                // block numbering
+                //  #############
+                //  # 1 # 2 # 3 #
+                //  #############
+                //  # 4 # 5 # 6 #
+                //  #############
+                //  # 7 # 8 # 9 #
+                //  #############
                 br = (i / 3) + 1;
                 bc = (j / 3) + 1;
                 ff = (2 - (j / 3)) * (i / 3);
                 b = (br * bc) + ff;
                 block = blocks[b-1];
                 //System.out.printf("r=%d, c=%d, br=%d, bc=%d, ff=%d, b=%d\n", i , j, br, bc, ff, b);
-                final Label l = new Label("", skin);
-                c = new cell(i+1, j+1, rows[i], columns[j], block, Color.WHITE, l);
+                Label l = new Label("", skin);
+                if (cornerBlocks.contains(b))
+                    l.setStyle(style2);
+                else if (b == 5)
+                    l.setStyle(style1);
+                else
+                    l.setStyle(style3);
+                c = new cell(i+1, j+1, rows[i], columns[j], block, l);
                 //l.setText(c.getName());
                 l.setAlignment(Align.center);
                 table.add(l).height(c.getSize()).width(c.getSize());
@@ -442,6 +494,10 @@ public class sudoku extends ApplicationAdapter {
             table.row();
             }
 
+        table.setBounds(0, 260, SCREEN_WIDTH, SCREEN_HEIGHT-260);
+        stage.addActor (table);
+
+        /*
         pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
         pixmap.setColor (Color.WHITE);
         pixmap.fill();
@@ -451,8 +507,9 @@ public class sudoku extends ApplicationAdapter {
         scrollTable.align (Align.left);
         // force scroller to fill the scroll table so user can touch any area and get it to scroll
         scrollTable.add (scroller).expand().fill();
-        scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
+        //scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
         stage.addActor (scrollTable);
+        */
 
         Grid grid = new Grid(2, Color.BLACK, 9, 9, 44);
         grid.setPosition(2, 262);
