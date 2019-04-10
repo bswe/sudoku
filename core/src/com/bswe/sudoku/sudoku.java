@@ -24,6 +24,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.ButtonGroup;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
@@ -119,12 +120,10 @@ class Grid extends Actor {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         sr.begin(ShapeRenderer.ShapeType.Line);
         Gdx.gl20.glLineWidth(lineWidth);
-        for (int i=0; i <= numberOfRows; i++) {
+        for (int i=0; i <= numberOfRows; i++)
             sr.line(x, y + (i * cellSize), x + width, y + (i * cellSize));
-        }
-        for (int i=0; i <= numberOfColumns; i++) {
+        for (int i=0; i <= numberOfColumns; i++)
             sr.line(x + (i * cellSize), y, x + (i * cellSize), y + height);
-        }
         sr.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
         Gdx.gl.glLineWidth(1f);
@@ -136,12 +135,13 @@ class Grid extends Actor {
 
 
 class cell {
-    int rowIndex, columnIndex, size, value;
+    int rowIndex, columnIndex, size, value = -1;
     Color color;
     String name;
     Vector row, column, block;
+    Label label;
 
-    cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Color color) {
+    cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Color color, Label l) {
         this.rowIndex = rowIndex;
         this.columnIndex = columnIndex;
         this.color = color;
@@ -150,28 +150,32 @@ class cell {
         this.block = block;
         this.size = 44;     // TODO: make this a constant and add method to change size
         name = Integer.toString(rowIndex) + "," + Integer.toString(columnIndex);
+        label = l;
+        setValue(0);
         }
 
     public void setValue(int value) {
         if (this.value == value)
             return;
-        if (this.value != 0) {
+        if (this.value > 0) {
             row.removeElement(this.value);
             column.removeElement(this.value);
             block.removeElement(this.value);
-        }
+            }
         this.value = value;
         if (this.value != 0) {
             row.add(this.value);
             column.add(this.value);
             block.add(this.value);
             }
-        System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
+        if (this.value == 0)
+            label.setText("");
+        else
+            label.setText(Integer.toString(this.value));
+        //System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
         }
 
-    public String getName() {
-        return name;
-    }
+    public String getName() { return name; }
 
     public int getValue() {
         return value;
@@ -245,6 +249,8 @@ public class sudoku extends ApplicationAdapter {
     private Vector[] blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
                                             new Vector(), new Vector(), new Vector(),
                                             new Vector(), new Vector(), new Vector()};
+
+    private cell selectedCell = null;
 
 
     public sudoku (SystemAccess sa) {
@@ -349,15 +355,27 @@ public class sudoku extends ApplicationAdapter {
 			//Gdx.app.log (TAG, "InactivityWatchdogFired: inactivity watchdog fired, logging user out");
 			//LogoutUser();
 			return true;    // watchdog fired
-		}
+		    }
 		return false;   // watchdog didn't fire
-	}
+	    }
 
 
     private void cellClicked (cell c) {
-        c.setValue(c.getValue()+1);
-        DisplayInformationDialog(c.getName(), "cell clicked: v=" + Integer.toString(c.getValue()));
+        //DisplayInformationDialog(c.getName(), "cell clicked: v=" + Integer.toString(c.getValue()));
+        if (selectedCell == c)
+            return;
+        // TODO: change focus highlighting on board
+        selectedCell = c;
         }
+
+
+    private void numberClicked (int n) {
+        //DisplayInformationDialog("numberClicked", "number clicked: v=" + Integer.toString(n));
+        // TODO: set value of selected cell
+        if (selectedCell != null)
+            selectedCell.setValue(n);
+        }
+
 
     private void CopyToSystemClipboard (String s) {
         final String S = s;
@@ -389,7 +407,7 @@ public class sudoku extends ApplicationAdapter {
             l.setWrap (true);
             table.add (l).width (225f).align (Align.center);
             table.row();
-        }
+            }
         Dialog editDialog = new Dialog (accessType + " Error", skin);
         editDialog.getContentTable().add (table).align (Align.center);
         editDialog.button ("OK", "ok");
@@ -411,21 +429,18 @@ public class sudoku extends ApplicationAdapter {
                 b = (br * bc) + ff;
                 block = blocks[b-1];
                 //System.out.printf("r=%d, c=%d, br=%d, bc=%d, ff=%d, b=%d\n", i , j, br, bc, ff, b);
-                c = new cell(i+1, j+1, rows[i], columns[j], block, Color.WHITE);
-                final String name = c.getName();
-                final Label cell = new Label(name, skin);
+                final Label l = new Label("", skin);
+                c = new cell(i+1, j+1, rows[i], columns[j], block, Color.WHITE, l);
+                //l.setText(c.getName());
+                l.setAlignment(Align.center);
+                table.add(l).height(c.getSize()).width(c.getSize());
                 final cell fc = c;
-                cell.setAlignment(Align.center);
-                table.add(cell).height(c.getSize()).width(c.getSize());
-                cell.addListener(new ClickListener() {
+                l.addListener(new ClickListener() {
                     @Override
-                    public void clicked(InputEvent event, float x, float y) {
-                        cellClicked(fc);
-                    }
-                });
-            }
+                    public void clicked(InputEvent event, float x, float y) { cellClicked(fc); }});
+                }
             table.row();
-        }
+            }
 
         pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
         pixmap.setColor (Color.WHITE);
@@ -442,12 +457,38 @@ public class sudoku extends ApplicationAdapter {
         Grid grid = new Grid(2, Color.BLACK, 9, 9, 44);
         grid.setPosition(2, 262);
         stage.addActor (grid);
-    }
+        }
+
+
+    private TextButton createNumberButton(int n) {
+        final TextButton button = new TextButton (Integer.toString(n), skin, "default");
+        final int N = n;
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) { numberClicked(N); }});
+        return button;
+        }
 
 
     private void Initialize () {
         AddBoardToStage();
-		// create the "Add Account" button
+
+        // create number button group
+        Table table = new Table(skin);
+        //ButtonGroup numbersGroup = new ButtonGroup();
+        for (int i=1; i <= 9; i++) {
+            TextButton button = createNumberButton(i);
+            table.add(button);
+            //numbersGroup.add(button);
+            }
+        table.setBounds(0, 100, SCREEN_WIDTH, 20);
+        table.setPosition(0, 100);
+        stage.addActor(table);
+        //numbersGroup.setMaxCheckCount(1);
+        //numbersGroup.setMinCheckCount(0);
+        //numbersGroup.setUncheckLast(true);
+
+        // create the "Add Account" button
 		final TextButton button1 = new TextButton ("Add\nAccount", skin, "default");
 		button1.setWidth (75);
 		button1.setHeight (40);
@@ -473,7 +514,7 @@ public class sudoku extends ApplicationAdapter {
 						if (object.equals ("add"))
 							//AddNewAccount();
                         Gdx.input.setOnscreenKeyboardVisible (false);
-                    }
+                        }
 				    };
 				editDialog.getContentTable().add (table);
 				editDialog.button ("Add", "add");
@@ -617,7 +658,7 @@ public class sudoku extends ApplicationAdapter {
         errorDialog.text (text);
         errorDialog.button ("OK", skin);
         errorDialog.show (stage);
-    }
+        }
 
 
 	public class MyInputProcessor implements InputProcessor {
