@@ -1,4 +1,4 @@
-package com.bswe;
+package com.bswe.sudoku;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
@@ -26,13 +26,13 @@ class DesktopSystemAccess implements SystemAccess {
          }
 
 public class DesktopLauncher {
-    private static final String TAG = pWallet.class.getName();
+    private static final String TAG = sudoku.class.getName();
 
     public static void main (String[] arg) {
         DesktopSystemAccess dsa = new DesktopSystemAccess (TAG);
 		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
-		config.height = pWallet.SCREEN_HEIGHT;
-		config.width = pWallet.SCREEN_WIDTH;
-		new LwjglApplication (new pWallet(dsa), config);
+		config.height = sudoku.SCREEN_HEIGHT;
+		config.width = sudoku.SCREEN_WIDTH;
+		new LwjglApplication (new sudoku(dsa), config);
 	    }
     }

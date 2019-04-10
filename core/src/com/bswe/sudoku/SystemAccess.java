@@ -1,4 +1,4 @@
-package com.bswe;
+package com.bswe.sudoku;
 
 /**
  * Created by wcb on 10/1/2017.

@@ -1,4 +1,4 @@
-package com.bswe;
+package com.bswe.sudoku;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
@@ -11,9 +11,12 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
@@ -25,22 +28,23 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.XmlReader;
 import com.badlogic.gdx.utils.XmlReader.Element;
 import com.badlogic.gdx.utils.XmlWriter;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
+import com.badlogic.gdx.math.Vector2;
 
 import static com.badlogic.gdx.Application.ApplicationType.Desktop;
 
 import org.jasypt.util.password.StrongPasswordEncryptor;
 
-import java.io.IOException;
+import java.lang.Exception;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.prefs.InvalidPreferencesFormatException;
 
 import org.jasypt.util.text.BasicTextEncryptor;
 import org.lwjgl.openal.AL;
@@ -74,8 +78,44 @@ class AccountComparator implements Comparator<Account> {
 	}
 
 
+class Line extends Actor {
+    private ShapeRenderer sr;
+    private Vector2 start, end;
+
+    Line(float width, float weight, Color color, Vector2 Start, Vector2 End){
+        setSize(width, weight);
+        setColor(color);
+        start = new Vector2(Start);
+        end = new Vector2(End);
+        //System.out.printf("Line: S=%f,%f   E=%f,%f\n", start.x, start.y, end.x, end.y);
+        sr = new ShapeRenderer();
+        sr.setAutoShapeType(true);
+    }
+
+
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
+        super.draw(batch, parentAlpha);
+        batch.end();
+
+        Color color = new Color(getColor());
+        sr.setProjectionMatrix(batch.getProjectionMatrix());
+        sr.setColor(color.r, color.g, color.b, color.a * parentAlpha);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        sr.begin(ShapeRenderer.ShapeType.Line);
+        sr.line(start.x, start.y, end.x, end.y);
+        sr.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        Gdx.gl.glLineWidth(1f);
+        sr.setColor(Color.WHITE);
+
+        batch.begin();
+    }
+}
+
 // Main application class
-public class pWallet extends ApplicationAdapter {
+public class sudoku extends ApplicationAdapter {
     // screen size that seems to work on both desktop and Moto Z Force phone well
 	public static final int SCREEN_WIDTH = 400;
 	public static final int SCREEN_HEIGHT = 660;
@@ -92,7 +132,7 @@ public class pWallet extends ApplicationAdapter {
                             INITIALIZED,    // startup state after accounts screen is initialized
                             LOGGED_OUT}     // state after initialization but while logged out
 
-	private static final String TAG = pWallet.class.getName();   // used for debug logging
+	private static final String TAG = sudoku.class.getName();   // used for debug logging
 
 	private String inputPassword = "";
 
@@ -104,7 +144,7 @@ public class pWallet extends ApplicationAdapter {
 	private TextField secondTextField;
 	private TextField thirdTextField;
 
-	private AppStates appState = AppStates.PW_REQUIRED;   // init to startup state
+	private AppStates appState = AppStates.PW_PASSED;   // init to startup state
 
 	private Pixmap pixmap;
 	private Skin skin;
@@ -131,7 +171,7 @@ public class pWallet extends ApplicationAdapter {
     private SystemAccess systemAccess;          // to access platform clipboards & permissions
 
 
-    public pWallet (SystemAccess sa) {
+    public sudoku (SystemAccess sa) {
         super();
         systemAccess = sa;
         }
@@ -142,14 +182,14 @@ public class pWallet extends ApplicationAdapter {
         //Gdx.app.log (TAG, "create: application class = " + Gdx.app.getClass().getName());
 
         // init preferences object for persistent storage
-		prefs = Gdx.app.getPreferences ("bswe-pwallet");
+		//prefs = Gdx.app.getPreferences ("bswe-pwallet");
 
 		// init stages to display
         skin = new Skin (Gdx.files.internal ("clean-crispy-ui.json"));
         stage = new Stage();
         stage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
-        loginStage = new Stage();
-        loginStage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
+        //loginStage = new Stage();
+        //loginStage.setViewport (new StretchViewport (SCREEN_WIDTH, SCREEN_HEIGHT, new OrthographicCamera()));
 
         // use input multiplexer to detect keyboard activity for resetting the inactivity watchdog to
         // keep it from firing while user enters dialog items
@@ -158,11 +198,11 @@ public class pWallet extends ApplicationAdapter {
         inputMultiplexer.addProcessor (stage);
 
 		// display password entry dialog
-		DisplayPasswordDialog ("");
+		//DisplayPasswordDialog ("");
 		}
 
 
-	@Override
+    @Override
 	public void render () {
 		Gdx.gl.glClearColor (0, 0, 0, 1);
 		Gdx.gl.glClear (GL20.GL_COLOR_BUFFER_BIT);
@@ -180,8 +220,8 @@ public class pWallet extends ApplicationAdapter {
                 // intentionally drop thru to INITIALIZED case below
             case INITIALIZED:
                 // check fo inactivity to potentially log the user out
-                if (InactivityWatchdogFired())
-                    return;
+                //if (InactivityWatchdogFired())
+                //    return;
                 // still logged in, so display the app's main stage
                 stage.getViewport().apply();
                 stage.act(Gdx.graphics.getDeltaTime());
@@ -194,7 +234,7 @@ public class pWallet extends ApplicationAdapter {
 	public void resize (int width, int height) {
 		//Gdx.app.log (TAG, "resize: w=" + width + ", h=" + height);
         stage.getViewport().update (width, height, true);
-        loginStage.getViewport().update (width, height, true);
+        //loginStage.getViewport().update (width, height, true);
 		}
 
 
@@ -220,7 +260,7 @@ public class pWallet extends ApplicationAdapter {
     @Override
     public void pause () {
         //Gdx.app.log (TAG, "pause:");
-        LogoutUser();       // hide the accounts screen by logging user out
+        //LogoutUser();       // hide the accounts screen by logging user out
         }
 
 
@@ -347,7 +387,7 @@ public class pWallet extends ApplicationAdapter {
 
 	private void RedisplayAccountsTable() {
 		scrollTable.remove();       // throw away old table
-		AddAccountsTableToStage();  // recreate table with existing accounts
+		AddBoardToStage();  // recreate table with existing accounts
 		}
 
 
@@ -437,7 +477,11 @@ public class pWallet extends ApplicationAdapter {
 		}
 
 
-	private void EditAccount (String accountName) {
+    private void EditBoard (String accountName) {
+        DisplayError(accountName, "cell clicked");
+    }
+
+    private void EditAccount (String accountName) {
 		final String AccountName = accountName;
 		//Gdx.app.log (TAG, "EditAccount: account name = " + accountName);
 		for (Account a : accounts)
@@ -499,50 +543,7 @@ public class pWallet extends ApplicationAdapter {
         }
 
 
-	private void AddAccountsTableToStage () {
-		// first make sure accounts are ordered alphabetically by account name
-		Collections.sort (accounts, new AccountComparator());
-		// add scrollable accounts table to stage
-		Table table = new Table();
-		for (Account a: accounts) {
-			final TextButton button = new TextButton (a.AccountName, skin);
-            button.getLabel().setFontScale (1.25f, 1.25f);
-			table.add (button).align (Align.right);
-            final String name = a.AccountName;
-            button.addListener (new ClickListener() {
-                @Override
-                public void clicked (InputEvent event, float x, float y) {
-                    EditAccount (name);
-                }
-            });
-			final Label UnText = new Label (a.UserName, skin);
-            UnText.setFontScale (1.25f);
-			table.add (UnText).align (Align.left).pad (10);
-			final Label PwText = new Label (a.Password, skin);
-            PwText.setFontScale (1.25f);
-            table.add (PwText).align (Align.left).pad (10);
-            final String password = a.Password;
-            PwText.addListener (new ClickListener(){
-                @Override
-                public void clicked (InputEvent event, float x, float y) {
-                    //Gdx.app.log (TAG, "password " + password + " clicked for " + name);
-                    CopyToSystemClipboard (password);
-                    }
-                });
-            table.row();
-			}
-		ScrollPane scroller = new ScrollPane (table);
-		scrollTable = new Table (skin);
-		scrollTable.setBounds (0, 40, SCREEN_WIDTH, SCREEN_HEIGHT-40);
-		scrollTable.align (Align.left);
-        // force scroller to fill the scroll table so user can touch any area and get it to scroll
-		scrollTable.add (scroller).expand().fill();
-		scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
-		stage.addActor (scrollTable);
-		}
-
-
-    private void DisplayFileError (String accessType, String cause) {
+    private void DisplayError (String accessType, String cause) {
         cause = cause.replace (')', ' ');
         String delimiters = "\\(";
         String[] subStrings = cause.split (delimiters);
@@ -553,7 +554,7 @@ public class pWallet extends ApplicationAdapter {
             table.add (l).width (225f).align (Align.center);
             table.row();
         }
-        Dialog editDialog = new Dialog ("File " + accessType + " Error", skin);
+        Dialog editDialog = new Dialog (accessType + " Error", skin);
         editDialog.getContentTable().add (table).align (Align.center);
         editDialog.button ("OK", "ok");
         editDialog.scaleBy (.5f);
@@ -567,21 +568,30 @@ public class pWallet extends ApplicationAdapter {
         try {
             FileHandle file = Gdx.files.external (firstTextField.getText());
             xml = file.readString();
+            XmlReader reader = new XmlReader();
+            Element root = reader.parse (xml);
+            Array<Element> items = root.getChildrenByName ("entry");
+            if (items.size == 0) {
+                throw new InvalidPreferencesFormatException ("Invalid preferences file",
+                                                             new Throwable ("No entries found in XML preferences file"));
+                }
+            UnPersistAllAccounts();
+            for (Element item : items) {
+                //Gdx.app.log (TAG, "RestoreAccounts: entry " + item.getAttribute("key") + " = " + item.getText());
+                prefs.putString(item.getAttribute("key"), item.getText());
+                }
+            prefs.flush();
             }
-        catch (GdxRuntimeException e) {
-            Gdx.app.log (TAG, "RestoreAccounts: File Read Error cause - " + e.getCause().getLocalizedMessage());
-            DisplayFileError ("Read", e.getCause().getLocalizedMessage());
+        catch (Exception e) {
+            String cause;
+            if (e.getCause() == null)
+                cause = e.getLocalizedMessage().split("near")[0];
+            else
+                cause = e.getCause().getLocalizedMessage();
+            Gdx.app.log (TAG, "RestoreAccounts: Error cause - " + cause);
+            DisplayError ("RestoreAccounts", cause);
             return;
             }
-        XmlReader reader = new XmlReader();
-        Element root = reader.parse (xml);
-        Array<Element> items = root.getChildrenByName ("entry");
-        UnPersistAllAccounts();
-        for (Element item : items) {
-            //Gdx.app.log (TAG, "RestoreAccounts: entry " + item.getAttribute("key") + " = " + item.getText());
-            prefs.putString(item.getAttribute("key"), item.getText());
-            }
-        prefs.flush();
         // force the app restart and the user to re-login using the password in the restored accounts
         stage.clear();
         appState = AppStates.PW_REQUIRED;
@@ -596,13 +606,12 @@ public class pWallet extends ApplicationAdapter {
             entry.text(s);
             entry.pop();
             return true;
-        }
-        catch (IOException ex) {
-            Gdx.app.log (TAG, "XmlWriteEntry: File Write Error cause - " + ex.getCause().getLocalizedMessage());
-            DisplayFileError ("Write", ex.getCause().getLocalizedMessage());
+            }
+        catch (Exception e) {
+            Gdx.app.log (TAG, "XmlWriteEntry: File Write Error cause - " + e.getCause().getLocalizedMessage());
+            DisplayError ("ArchiveAccounts", e.getCause().getLocalizedMessage());
             return false;
-        }
-
+            }
         }
 
 
@@ -634,18 +643,18 @@ public class pWallet extends ApplicationAdapter {
                 if (!XmlWriteAccount (propeties, index++))
                     return;
                 // write account username
-               if (!XmlWriteAccount (propeties, index++))
+                if (!XmlWriteAccount (propeties, index++))
                     return;
                 // write account password
-               if (!XmlWriteAccount (propeties, index))
+                if (!XmlWriteAccount (propeties, index))
                     return;
                 }
             propeties.pop();
             top.close();
             }
-        catch (IOException e) {
-            Gdx.app.log (TAG, "ArchiveAccounts: File Write Error cause - " + e.getCause().getLocalizedMessage());
-            DisplayFileError ("Write", e.getCause().getLocalizedMessage());
+        catch (Exception e) {
+            Gdx.app.log (TAG, "ArchiveAccounts: Error cause - " + e.getCause().getLocalizedMessage());
+            DisplayError ("ArchiveAccounts", e.getCause().getLocalizedMessage());
             return;
             }
 	    }
@@ -658,30 +667,46 @@ public class pWallet extends ApplicationAdapter {
         }
 
 
-	private void Initialize () {
-        accounts = new ArrayList<Account>();
-		// check preferences for any accounts
-		if (prefs.contains(NUMBER_OF_ACCOUNTS_KEY)) {
-			// load any persisted accounts
-			numberOfAccounts = Integer.parseInt (textEncryptor.decrypt (prefs.getString (NUMBER_OF_ACCOUNTS_KEY)));
-            //Gdx.app.log (TAG, "Initialize: persisted numberOfAccounts = " + numberOfAccounts);
-            LoadAccounts();
-			}
-		else {
-			// no accounts persisted yet so initialize the key
-			numberOfAccounts = 0;
-            //Gdx.app.log (TAG, "Initialize: initial numberOfAccounts = " + numberOfAccounts);
-			prefs.putString (NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString (numberOfAccounts)));
-            prefs.flush();
-		    }
+    private void AddBoardToStage () {
+        Table table = new Table();
+        for (int i=1; i <= 9; i++) {
+            for (int j=1; j <= 9; j++) {
+                final String name = Integer.toString(i) + "," + Integer.toString(j);
+                final Label cell = new Label(name, skin);
+                cell.setAlignment(Align.center);
+                table.add(cell).height(44).width(44);
+                cell.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent event, float x, float y) {
+                        EditBoard(name);
+                    }
+                });
+            }
+            table.row();
+        }
+        //table.debugCell();
 
-		// password matched, so show the accounts and buttons
-		pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
-		pixmap.setColor (Color.SALMON);
-		pixmap.fill();
+        pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
+        pixmap.setColor (Color.WHITE);
+        pixmap.fill();
+        ScrollPane scroller = new ScrollPane (table);
+        scrollTable = new Table (skin);
+        scrollTable.setBounds (0, 260, SCREEN_WIDTH, SCREEN_HEIGHT-260);
+        scrollTable.align (Align.left);
+        // force scroller to fill the scroll table so user can touch any area and get it to scroll
+        scrollTable.add (scroller).expand().fill();
+        scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
+        stage.addActor (scrollTable);
 
-        AddAccountsTableToStage();
+        Line line = new Line(1, 1, Color.RED, new Vector2(100, 100), new Vector2(200, 100));
+        stage.addActor (line);
+        line = new Line(1, 1, Color.RED, new Vector2(100, 300), new Vector2(100, 400));
+        stage.addActor (line);
+    }
 
+
+    private void Initialize () {
+        AddBoardToStage();
 		// create the "Add Account" button
 		final TextButton button1 = new TextButton ("Add\nAccount", skin, "default");
 		button1.setWidth (75);

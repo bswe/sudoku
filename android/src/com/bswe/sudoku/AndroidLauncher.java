@@ -1,4 +1,4 @@
-package com.bswe;
+package com.bswe.sudoku;
 
 import android.Manifest;
 import android.content.ClipData;
@@ -46,9 +46,9 @@ public class AndroidLauncher extends AndroidApplication {
 	@Override
 	protected void onCreate (Bundle savedInstanceState) {
 		super.onCreate (savedInstanceState);
-        AndroidSystemAccess asa = new AndroidSystemAccess (this, pWallet.class.getName(),
+        AndroidSystemAccess asa = new AndroidSystemAccess (this, sudoku.class.getName(),
                                                            (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE));
 		AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
-        initialize (new pWallet(asa), config);
+        initialize (new sudoku(asa), config);
 	    }
     }
