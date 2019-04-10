@@ -50,34 +50,6 @@ import org.jasypt.util.text.BasicTextEncryptor;
 import org.lwjgl.openal.AL;
 
 
-// object to hold account info
-class Account {
-    // In order to save and retrieve the account information in the preferences persistence storage
-    // each account has a unique "Persistence Index", which is used as the base for the 3 string keys
-    // that are associated with the 3 account string fields.  The AccountName field uses
-    // PersistenceIndex*3 converted to a string, the UserName field uses PersistenceIndex*3+1, and
-    // the Password field uses PersistenceIndex*3+2
-	String AccountName, UserName, Password;
-	Integer PersistenceIndex;         // used as the base key for persisting the account information
-
-	public Account (Integer index, String name, String UN, String PW) {
-		PersistenceIndex = index;
-		AccountName = name;
-		UserName = UN;
-		Password = PW;
-		}
- 	}
-
-
-// comparator for sorting accounts alphabetically by their name
-class AccountComparator implements Comparator<Account> {
-	@Override
-	public int compare (Account a1, Account a2) {
-        return a1.AccountName.compareToIgnoreCase (a2.AccountName);
-		}
-	}
-
-
 class Line extends Actor {
     private ShapeRenderer sr;
     private Vector2 start, end;
@@ -116,10 +88,10 @@ class Line extends Actor {
 
 class Grid extends Actor {
     private ShapeRenderer sr;
-    private int numberOfRows, numberOfColumns, cellSize;
+    private int numberOfRows, numberOfColumns, cellSize, lineWidth;
 
-    Grid(float width, float weight, Color color, int Rows, int Columns, int CellSize){
-        setSize(width, weight);
+    Grid(int LineWidth, Color color, int Rows, int Columns, int CellSize){
+        lineWidth = LineWidth;
         setColor(color);
         numberOfRows = Rows;
         numberOfColumns = Columns;
@@ -145,7 +117,7 @@ class Grid extends Actor {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         sr.begin(ShapeRenderer.ShapeType.Line);
-
+        Gdx.gl20.glLineWidth(lineWidth);
         for (int i=0; i <= numberOfRows; i++) {
             sr.line(x, y + (i * cellSize), x + width, y + (i * cellSize));
         }
@@ -201,10 +173,6 @@ public class sudoku extends ApplicationAdapter {
 
 	private Table scrollTable;
 	private Label errorText;
-
-	private List<Account> accounts;
-
-	private int numberOfAccounts;
 
 	private StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
 
@@ -319,257 +287,16 @@ public class sudoku extends ApplicationAdapter {
 		elapsedTimeInSeconds += Gdx.graphics.getRawDeltaTime();
 		if (elapsedTimeInSeconds > INACTIVITY_DURATION) {
 			//Gdx.app.log (TAG, "InactivityWatchdogFired: inactivity watchdog fired, logging user out");
-			LogoutUser();
+			//LogoutUser();
 			return true;    // watchdog fired
 		}
 		return false;   // watchdog didn't fire
 	}
 
 
-	private boolean KeyNotFound (String k) {
-        if (prefs.contains (k)) return false;
-        Gdx.app.log (TAG, "LoadAccounts: numberOfAccounts=" + numberOfAccounts +
-                " key " + k + " not found in prefernces");
-        return true;
-    }
-
-
-	// load accounts from the preferences persistent storage
-	private void LoadAccounts () {
-        // see the description in the Account class about how the keys below are associated with
-        // each account field
-		for (int i=1; i <= numberOfAccounts; i++) {
-            String key;
-            Integer index = i * 3;
-            key = Integer.toString (index++);
-            if (KeyNotFound (key)) continue;
-			String name = prefs.getString (key, "");
-			name = textEncryptor.decrypt (name);
-            key = Integer.toString (index++);
-            if (KeyNotFound (key)) continue;
-            String userName = prefs.getString (key, "");
-			userName = textEncryptor.decrypt (userName);
-            key = Integer.toString (index);
-            if (KeyNotFound (key)) continue;
-            String password = prefs.getString (key, "");
-			password = textEncryptor.decrypt (password);
-			Account a = new Account (i, name, userName, password);
-			accounts.add (a);
-			}
-		}
-
-
-	private void DisplayPasswordDialog (String msg) {
-        // the msg parameter is for retrying failed password checks, it should be an empty string otherwise
-        passwordTextField = new TextField ("", skin);
-		String title = "Create Password";
-        if (prefs.contains (PASSWORD_KEY)) {
-            // if password exists then hide password entry, if not then display what's entered
-            passwordTextField.setPasswordMode (true);
-            passwordTextField.setPasswordCharacter ('*');
-			title = "Enter Password";
-            }
-		Table table = new Table();
-		table.add (passwordTextField);
-		Dialog editDialog = new Dialog (title, skin) {
-			protected void result (Object object) {
-				CheckPassword();
-                Gdx.input.setOnscreenKeyboardVisible (false);
-				}
-			};
-        if (!msg.equals ("")) {
-            // this request for the password follows a failed password input, so display the error
-            table.row();
-            Label label = new Label (msg, skin);
-            label.setAlignment (Align.center);
-            label.setColor (Color.RED);
-            table.add (label);
-            }
-		editDialog.button ("OK", "ok");
-		editDialog.getContentTable().add (table);
-        editDialog.scaleBy (.5f);
-        editDialog.show(loginStage).setX (70f);
-        loginStage.setKeyboardFocus (passwordTextField);
-        Gdx.input.setInputProcessor (loginStage);
-		}
-
-
-	private void PersistAccount (Account a) {
-        // persist an accounts information into the preferences storage
-        // see the description in the Account class about how the keys below are associated with
-        // each account field
-		String encryptedText;
-		String key;
-        Integer index = a.PersistenceIndex * 3;
-        key = Integer.toString (index++);
-		encryptedText = textEncryptor.encrypt (a.AccountName);
-		prefs.putString (key, encryptedText);
-        key = Integer.toString (index++);
-		encryptedText = textEncryptor.encrypt (a.UserName);
-		prefs.putString (key, encryptedText);
-        key = Integer.toString (index++);
-		encryptedText = textEncryptor.encrypt (a.Password);
-		prefs.putString (key, encryptedText);
-		prefs.flush();
-		}
-
-
-	private void UnPersistAllAccounts () {
-        // remove all accounts from the preferences storage
-        // see the description in the Account class about how the keys below are associated with
-        // each account field
-        for (Account a : accounts) {
-            String key;
-            Integer index = a.PersistenceIndex * 3;
-            key = Integer.toString (index++);
-			prefs.remove (key);
-            key = Integer.toString (index++);
-            prefs.remove (key);
-            key = Integer.toString (index++);
-            prefs.remove (key);
-			}
-		prefs.putString (NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString (0)));
-		prefs.flush();
-		}
-
-
-	private void RedisplayAccountsTable() {
-		scrollTable.remove();       // throw away old table
-		AddBoardToStage();  // recreate table with existing accounts
-		}
-
-
-	private void AddNewAccount () {
-		String accountName = firstTextField.getText();
-		String accountUsername = secondTextField.getText();
-		String accountPassword = thirdTextField.getText();
-		if (accountName.equals ("") || accountUsername.equals ("") || accountPassword.equals ("")) {
-            Dialog errorDialog = new Dialog ("Input Error", skin);
-            errorDialog.text ("All fields must have text, use N/A if needed");
-            errorDialog.button ("OK", skin);
-            errorDialog.show (stage);
-            return;
-            }
-		// check for account name being unique
-		for (Account a: accounts)
-			if (a.AccountName.equals (accountName)) {
-				Dialog errorDialog = new Dialog ("Error", skin);
-				errorDialog.text ("Account with the name (" + accountName + ") already exists");
-				errorDialog.button ("OK", skin);
-				errorDialog.show (stage);
-				return;
-				}
-		//Gdx.app.log (TAG, "AddNewAccount: (an=" + accountName + ", un=" + accountUsername + ", pw=" + accountPassword + ")");
-		// create new account and use the incremented numberOfAccounts as its persistence index
-        Account a = new Account (++numberOfAccounts, accountName, accountUsername, accountPassword);
-		PersistAccount (a);
-        prefs.putString (NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString (numberOfAccounts)));
-        prefs.flush();
-		accounts.add (a);
-		RedisplayAccountsTable();
-		}
-
-
-	private void ChangeAccount (String accountName, String newName, String newUsername, String newPassword) {
-        if (newName.equals ("") || newUsername.equals ("") || newPassword.equals ("")) {
-            Dialog errorDialog = new Dialog ("Input Error", skin);
-            errorDialog.text ("All fields must have text, use N/A if needed");
-            errorDialog.button ("OK", skin);
-            errorDialog.show (stage);
-            return;
-            }
-		for (Account a : accounts)
-			if (a.AccountName.equals (accountName)) {
-				a.AccountName = newName;
-				a.UserName = newUsername;
-				a.Password = newPassword;
-				PersistAccount (a);
-				}
-		RedisplayAccountsTable();
-		}
-
-
-	private void DeleteAccount (String accountName) {
-        final String name = accountName;
-        Dialog confirmationDialog = new Dialog ("Delete Account Confirmation", skin) {
-            protected void result (Object object) {
-                //Gdx.app.log (TAG, "DeleteAccount confirmation dialog: chosen = " + object);
-                if (object.equals ("ok"))
-                    for (Account a : accounts)
-                        if (a.AccountName.equals (name)) {
-                            UnPersistAllAccounts();
-                            accounts.remove (a);
-                            numberOfAccounts--;
-                            Integer i = 0;
-                            for (Account A : accounts) {
-                                A.PersistenceIndex = ++i;
-                                PersistAccount (A);
-                                }
-                            prefs.putString (NUMBER_OF_ACCOUNTS_KEY,
-                                             textEncryptor.encrypt (Integer.toString(numberOfAccounts)));
-                            prefs.flush();
-                            RedisplayAccountsTable();
-                            break;
-                            }
-                }
-            };
-        Table table = new Table();
-        Label label = new Label ("Confirm the deletion\n\rof account " + name, skin);
-        label.setAlignment (Align.center);
-        table.add (label);
-        confirmationDialog.getContentTable().add (table);
-        confirmationDialog.button ("OK", "ok");
-        confirmationDialog.button ("Cancel", "cancel");
-        confirmationDialog.scaleBy (.5f);
-        confirmationDialog.show (stage).setX (10f);
-		}
-
-
     private void EditBoard (String accountName) {
-        DisplayError(accountName, "cell clicked");
+        DisplayInformationDialog(accountName, "cell clicked");
     }
-
-    private void EditAccount (String accountName) {
-		final String AccountName = accountName;
-		//Gdx.app.log (TAG, "EditAccount: account name = " + accountName);
-		for (Account a : accounts)
-			if (a.AccountName.equals (accountName)) {
-				firstTextField = new TextField (a.AccountName, skin);
-				secondTextField = new TextField (a.UserName, skin);
-				thirdTextField = new TextField (a.Password, skin);
-				Table table = new Table (skin);
-				table.add ("AccountName ").align (Align.right);
-				table.add (firstTextField);
-				table.row();
-				table.add ("Username ").align (Align.right);
-				table.add (secondTextField);
-				table.row();
-				table.add ("Password ").align (Align.right);
-				table.add (thirdTextField);
-				Dialog editDialog = new Dialog ("Edit Account Information", skin) {
-					protected void result (Object object) {
-						//Gdx.app.log (TAG, "EditAccount dialog: chosen = " + object);
-						//Gdx.app.log (TAG, "editDialog dialog: name = " + firstTextField.getText());
-						if (object.equals ("change"))
-							ChangeAccount (AccountName,
-										   firstTextField.getText(),
-										   secondTextField.getText(),
-										   thirdTextField.getText());
-						else if (object.equals ("delete"))
-							DeleteAccount (AccountName);
-                        Gdx.input.setOnscreenKeyboardVisible (false);
-						}
-					};
-				editDialog.getContentTable().add (table);
-				editDialog.button ("Delete", "delete");
-				editDialog.button ("Change", "change");
-				editDialog.button ("Cancel", "cancel");
-                editDialog.scaleBy (.4f);
-				editDialog.show(stage).setX (5f);
-				stage.setKeyboardFocus (firstTextField);
-			    }
-		}
-
 
     private void CopyToSystemClipboard (String s) {
         final String S = s;
@@ -610,111 +337,6 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
-	private void RestoreAccounts() {
-        String xml;
-		//Gdx.app.log (TAG, "RestoreAccounts: file path = " + firstTextField.getText());
-        try {
-            FileHandle file = Gdx.files.external (firstTextField.getText());
-            xml = file.readString();
-            XmlReader reader = new XmlReader();
-            Element root = reader.parse (xml);
-            Array<Element> items = root.getChildrenByName ("entry");
-            if (items.size == 0) {
-                throw new InvalidPreferencesFormatException ("Invalid preferences file",
-                                                             new Throwable ("No entries found in XML preferences file"));
-                }
-            UnPersistAllAccounts();
-            for (Element item : items) {
-                //Gdx.app.log (TAG, "RestoreAccounts: entry " + item.getAttribute("key") + " = " + item.getText());
-                prefs.putString(item.getAttribute("key"), item.getText());
-                }
-            prefs.flush();
-            }
-        catch (Exception e) {
-            String cause;
-            if (e.getCause() == null)
-                cause = e.getLocalizedMessage().split("near")[0];
-            else
-                cause = e.getCause().getLocalizedMessage();
-            Gdx.app.log (TAG, "RestoreAccounts: Error cause - " + cause);
-            DisplayError ("RestoreAccounts", cause);
-            return;
-            }
-        // force the app restart and the user to re-login using the password in the restored accounts
-        stage.clear();
-        appState = AppStates.PW_REQUIRED;
-        DisplayPasswordDialog ("");
-	    }
-
-
-    private boolean XmlWriteEntry (XmlWriter parent, String k, String s) {
-        try {
-            XmlWriter entry = parent.element ("entry");
-            entry.attribute ("key", k);
-            entry.text(s);
-            entry.pop();
-            return true;
-            }
-        catch (Exception e) {
-            Gdx.app.log (TAG, "XmlWriteEntry: File Write Error cause - " + e.getCause().getLocalizedMessage());
-            DisplayError ("ArchiveAccounts", e.getCause().getLocalizedMessage());
-            return false;
-            }
-        }
-
-
-    private boolean XmlWriteAccount (XmlWriter parent, Integer k) {
-        //Gdx.app.log (TAG, "XmlWriteAccount: k=" + k);
-        String key = Integer.toString (k);
-        String s = prefs.getString (key, "");
-        return XmlWriteEntry (parent, key, s);
-        }
-
-
-	private void ArchiveAccounts() {
-		//Gdx.app.log (TAG, "ArchiveAccounts: file path = " + firstTextField.getText());
-        try {
-            FileHandle file = Gdx.files.external (firstTextField.getText());
-            Writer writer = file.writer (false);
-            XmlWriter top = new XmlWriter (writer);
-            // write the xml header stuff
-            writer.write ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n\r");
-            writer.write ("<!DOCTYPE properties SYSTEM \"http://java.sun.com/dtd/properties.dtd\">\n\r");
-            XmlWriter propeties = top.element ("properties");
-            String s = prefs.getString (PASSWORD_KEY);
-            XmlWriteEntry (propeties, PASSWORD_KEY, s);
-            s = prefs.getString (NUMBER_OF_ACCOUNTS_KEY);
-            XmlWriteEntry (propeties, NUMBER_OF_ACCOUNTS_KEY, s);
-            for (int i=1; i <= numberOfAccounts; i++) {
-                Integer index = i * 3;
-                // write account name
-                if (!XmlWriteAccount (propeties, index++))
-                    return;
-                // write account username
-                if (!XmlWriteAccount (propeties, index++))
-                    return;
-                // write account password
-                if (!XmlWriteAccount (propeties, index))
-                    return;
-                }
-            propeties.pop();
-            top.close();
-            }
-        catch (Exception e) {
-            Gdx.app.log (TAG, "ArchiveAccounts: Error cause - " + e.getCause().getLocalizedMessage());
-            DisplayError ("ArchiveAccounts", e.getCause().getLocalizedMessage());
-            return;
-            }
-	    }
-
-
-    private void LogoutUser() {
-        // force a logout of the user
-        appState = AppStates.LOGGED_OUT;
-        DisplayPasswordDialog ("");
-        }
-
-
     private void AddBoardToStage () {
         Table table = new Table();
         for (int i=1; i <= 9; i++) {
@@ -732,7 +354,6 @@ public class sudoku extends ApplicationAdapter {
             }
             table.row();
         }
-        //table.debugCell();
 
         pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
         pixmap.setColor (Color.WHITE);
@@ -746,12 +367,7 @@ public class sudoku extends ApplicationAdapter {
         scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
         stage.addActor (scrollTable);
 
-        /*
-        Line line = new Line(1, 1, Color.RED, new Vector2(100, 100), new Vector2(200, 100));
-        stage.addActor (line);
-        line = new Line(1, 1, Color.RED, new Vector2(100, 300), new Vector2(100, 400));
-        */
-        Grid grid = new Grid(1, 1, Color.BLACK, 9, 9, 44);
+        Grid grid = new Grid(2, Color.BLACK, 9, 9, 44);
         grid.setPosition(2, 262);
         stage.addActor (grid);
     }
@@ -783,7 +399,7 @@ public class sudoku extends ApplicationAdapter {
 						//Gdx.app.log (TAG, "AddAccount dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "AddAccount dialog: name = " + firstTextField.getText());
 						if (object.equals ("add"))
-							AddNewAccount();
+							//AddNewAccount();
                         Gdx.input.setOnscreenKeyboardVisible (false);
                     }
 				    };
@@ -818,7 +434,7 @@ public class sudoku extends ApplicationAdapter {
 						//Gdx.app.log (TAG, "Change Password dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "Change Password dialog: new password = " + firstTextField.getText());
 						if (object.equals ("ok"))
-							ChangeAppPassword();
+							//ChangeAppPassword();
                         Gdx.input.setOnscreenKeyboardVisible (false);
 						}
 					};
@@ -841,7 +457,7 @@ public class sudoku extends ApplicationAdapter {
             @Override
 			public void clicked (InputEvent event, float x, float y) {
 				//Gdx.app.log (TAG, "Logout button clicked");
-                LogoutUser();
+                //LogoutUser();
 				}
 			});
 		button3.setPosition (170, 0);
@@ -870,7 +486,7 @@ public class sudoku extends ApplicationAdapter {
 						//Gdx.app.log (TAG, "Restore Accounts dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "Restore Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals ("ok"))
-							RestoreAccounts();
+							//RestoreAccounts();
                         Gdx.input.setOnscreenKeyboardVisible (false);
 						}
 					};
@@ -904,7 +520,7 @@ public class sudoku extends ApplicationAdapter {
 						//Gdx.app.log (TAG, "Archive Accounts dialog: chosen = " + object);
 						//Gdx.app.log (TAG, "Archive Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals ("ok"))
-							ArchiveAccounts();
+							//ArchiveAccounts();
                         Gdx.input.setOnscreenKeyboardVisible (false);
 						}
 					};
@@ -930,87 +546,6 @@ public class sudoku extends ApplicationAdapter {
         errorDialog.button ("OK", skin);
         errorDialog.show (stage);
     }
-
-
-	private void ChangeAppPassword() {
-        if (firstTextField.getText().equals (secondTextField.getText())) {
-			inputPassword = firstTextField.getText();
-			PersistPassword();
-            prefs.putString (NUMBER_OF_ACCOUNTS_KEY, textEncryptor.encrypt (Integer.toString (numberOfAccounts)));
-			for (Account a : accounts) {
-				PersistAccount (a);
-				}
-			}
-		else {
-            DisplayInformationDialog ("Error", "Password \"" + firstTextField.getText() +
-                                      "\" not confirmed by \"" + secondTextField.getText() +"\"");
-			}
-		}
-
-
-	private void PersistPassword () {
-		String encryptedPassword = passwordEncryptor.encryptPassword (inputPassword);
-		//Gdx.app.log (TAG, "PersistPassword: new encrypted password=(" + inputPassword +
-		//		" - " + encryptedPassword + ")");
-		prefs.putString (PASSWORD_KEY, encryptedPassword);
-		prefs.flush();
-
-		textEncryptor = new BasicTextEncryptor();
-		// TODO: make this textEncryptor password more robust; make its own routine?
-		textEncryptor.setPassword (inputPassword);
-		}
-
-
-	private void CheckPassword () {
-        // clear the error text and login dialog from stage
-        loginStage.clear();
-        inputPassword = passwordTextField.getText();
-		try {
-            if (!prefs.contains (PASSWORD_KEY)) {
-				// first time app has been run so initialize the app to this new password
-				PersistPassword();
-				appState = AppStates.PW_PASSED;
-				return;
-				}
-			else {
-                // normal login so check the password
-                String savedPassword = prefs.getString(PASSWORD_KEY);
-                //Gdx.app.log (TAG, "CheckPassword: saved password=(" + savedPassword + ")");
-                if (passwordEncryptor.checkPassword (inputPassword, savedPassword)) {
-                    //Gdx.app.log (TAG, "CheckPassword: password passed");
-                    // reset inactivity watchdog timer
-                    elapsedTimeInSeconds = 0;
-                    if (appState == AppStates.LOGGED_OUT) {
-                        // already been initialized, so just jump to that state
-                        appState = AppStates.INITIALIZED;
-                        Gdx.input.setInputProcessor (inputMultiplexer);
-                        }
-                    else {
-                        // initial password entry at app startup or after restoration of archive,
-                        // so init the text encryptor and force renderer to call init method
-                        textEncryptor = new BasicTextEncryptor();
-                        // TODO: make this textEncryptor password more robust; make its own routine?
-                        textEncryptor.setPassword (inputPassword);
-                        appState = AppStates.PW_PASSED;
-                        }
-                    return;
-                    }
-                else {
-                    //Gdx.app.log (TAG, "CheckPassword: password failed)");
-                    }
-                }
-			}
-		catch (Exception e) {
-			Gdx.app.log (TAG, "CheckPassword: password failed - exception caught)");
-			}
-		// if we get here the password failed so indicate this and prompt again
-		errorText = new Label ("Incorrect Password", skin);
-		errorText.setColor (Color.RED);
-		errorText.setPosition (60, 200);
-		errorText.setFontScale (2, 2);
-		loginStage.addActor (errorText);
-		DisplayPasswordDialog ("Incorrect password\n\rplease try again");
-		}
 
 
 	public class MyInputProcessor implements InputProcessor {
