@@ -90,7 +90,7 @@ class Line extends Actor {
         //System.out.printf("Line: S=%f,%f   E=%f,%f\n", start.x, start.y, end.x, end.y);
         sr = new ShapeRenderer();
         sr.setAutoShapeType(true);
-    }
+        }
 
 
     @Override
@@ -111,8 +111,56 @@ class Line extends Actor {
         sr.setColor(Color.WHITE);
 
         batch.begin();
+        }
     }
-}
+
+class Grid extends Actor {
+    private ShapeRenderer sr;
+    private int numberOfRows, numberOfColumns, cellSize;
+
+    Grid(float width, float weight, Color color, int Rows, int Columns, int CellSize){
+        setSize(width, weight);
+        setColor(color);
+        numberOfRows = Rows;
+        numberOfColumns = Columns;
+        cellSize = CellSize;
+        //System.out.printf("Line: S=%f,%f   E=%f,%f\n", start.x, start.y, end.x, end.y);
+        sr = new ShapeRenderer();
+        sr.setAutoShapeType(true);
+        }
+
+
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
+        int height = numberOfRows * cellSize;
+        int width = numberOfColumns * cellSize;
+        float x = getX();
+        float y = getY();
+        super.draw(batch, parentAlpha);
+        batch.end();
+
+        Color color = new Color(getColor());
+        sr.setProjectionMatrix(batch.getProjectionMatrix());
+        sr.setColor(color.r, color.g, color.b, color.a * parentAlpha);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        sr.begin(ShapeRenderer.ShapeType.Line);
+
+        for (int i=0; i <= numberOfRows; i++) {
+            sr.line(x, y + (i * cellSize), x + width, y + (i * cellSize));
+        }
+        for (int i=0; i <= numberOfColumns; i++) {
+            sr.line(x + (i * cellSize), y, x + (i * cellSize), y + height);
+        }
+        sr.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        Gdx.gl.glLineWidth(1f);
+        sr.setColor(Color.WHITE);
+
+        batch.begin();
+        }
+    }
+
 
 // Main application class
 public class sudoku extends ApplicationAdapter {
@@ -698,10 +746,14 @@ public class sudoku extends ApplicationAdapter {
         scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
         stage.addActor (scrollTable);
 
+        /*
         Line line = new Line(1, 1, Color.RED, new Vector2(100, 100), new Vector2(200, 100));
         stage.addActor (line);
         line = new Line(1, 1, Color.RED, new Vector2(100, 300), new Vector2(100, 400));
-        stage.addActor (line);
+        */
+        Grid grid = new Grid(1, 1, Color.BLACK, 9, 9, 44);
+        grid.setPosition(2, 262);
+        stage.addActor (grid);
     }
 
 
