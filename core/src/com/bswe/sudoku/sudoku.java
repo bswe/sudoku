@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.prefs.InvalidPreferencesFormatException;
+import java.util.Vector;
 
 import org.jasypt.util.text.BasicTextEncryptor;
 import org.lwjgl.openal.AL;
@@ -86,6 +87,7 @@ class Line extends Actor {
         }
     }
 
+
 class Grid extends Actor {
     private ShapeRenderer sr;
     private int numberOfRows, numberOfColumns, cellSize, lineWidth;
@@ -100,7 +102,6 @@ class Grid extends Actor {
         sr = new ShapeRenderer();
         sr.setAutoShapeType(true);
         }
-
 
     @Override
     public void draw(Batch batch, float parentAlpha) {
@@ -131,6 +132,55 @@ class Grid extends Actor {
 
         batch.begin();
         }
+    }
+
+
+class cell {
+    int rowIndex, columnIndex, size, value;
+    Color color;
+    String name;
+    Vector row, column, block;
+
+    cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Color color) {
+        this.rowIndex = rowIndex;
+        this.columnIndex = columnIndex;
+        this.color = color;
+        this.row = row;
+        this.column = column;
+        this.block = block;
+        this.size = 44;     // TODO: make this a constant and add method to change size
+        name = Integer.toString(rowIndex) + "," + Integer.toString(columnIndex);
+        }
+
+    public void setValue(int value) {
+        if (this.value == value)
+            return;
+        if (this.value != 0) {
+            row.removeElement(this.value);
+            column.removeElement(this.value);
+            block.removeElement(this.value);
+        }
+        this.value = value;
+        if (this.value != 0) {
+            row.add(this.value);
+            column.add(this.value);
+            block.add(this.value);
+            }
+        System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
+        }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getValue() {
+        return value;
+    }
+
+    public int getSize() {
+        return size;
+        }
+
     }
 
 
@@ -185,6 +235,16 @@ public class sudoku extends ApplicationAdapter {
     private InputMultiplexer inputMultiplexer;
 
     private SystemAccess systemAccess;          // to access platform clipboards & permissions
+
+    private Vector[] rows = new Vector[] {new Vector(), new Vector(), new Vector(),
+                                          new Vector(), new Vector(), new Vector(),
+                                          new Vector(), new Vector(), new Vector()};
+    private Vector[] columns = new Vector[] {new Vector(), new Vector(), new Vector(),
+                                             new Vector(), new Vector(), new Vector(),
+                                             new Vector(), new Vector(), new Vector()};
+    private Vector[] blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
+                                            new Vector(), new Vector(), new Vector(),
+                                            new Vector(), new Vector(), new Vector()};
 
 
     public sudoku (SystemAccess sa) {
@@ -294,9 +354,10 @@ public class sudoku extends ApplicationAdapter {
 	}
 
 
-    private void EditBoard (String accountName) {
-        DisplayInformationDialog(accountName, "cell clicked");
-    }
+    private void cellClicked (cell c) {
+        c.setValue(c.getValue()+1);
+        DisplayInformationDialog(c.getName(), "cell clicked: v=" + Integer.toString(c.getValue()));
+        }
 
     private void CopyToSystemClipboard (String s) {
         final String S = s;
@@ -338,17 +399,28 @@ public class sudoku extends ApplicationAdapter {
 
 
     private void AddBoardToStage () {
+        cell c;
+        Vector block;
+        int br, bc, ff, b;
         Table table = new Table();
-        for (int i=1; i <= 9; i++) {
-            for (int j=1; j <= 9; j++) {
-                final String name = Integer.toString(i) + "," + Integer.toString(j);
+        for (int i=0; i < 9; i++) {
+            for (int j=0; j < 9; j++) {
+                br = (i / 3) + 1;
+                bc = (j / 3) + 1;
+                ff = (2 - (j / 3)) * (i / 3);
+                b = (br * bc) + ff;
+                block = blocks[b-1];
+                //System.out.printf("r=%d, c=%d, br=%d, bc=%d, ff=%d, b=%d\n", i , j, br, bc, ff, b);
+                c = new cell(i+1, j+1, rows[i], columns[j], block, Color.WHITE);
+                final String name = c.getName();
                 final Label cell = new Label(name, skin);
+                final cell fc = c;
                 cell.setAlignment(Align.center);
-                table.add(cell).height(44).width(44);
+                table.add(cell).height(c.getSize()).width(c.getSize());
                 cell.addListener(new ClickListener() {
                     @Override
                     public void clicked(InputEvent event, float x, float y) {
-                        EditBoard(name);
+                        cellClicked(fc);
                     }
                 });
             }
