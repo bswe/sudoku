@@ -289,6 +289,7 @@ public class sudoku extends ApplicationAdapter {
         inputMultiplexer.addProcessor (new MyInputProcessor());  // to detect keyboard activity
         inputMultiplexer.addProcessor (stage);
 
+        // create label styles for different color backgrounds for cells
         Label temp = new Label("", skin);
         Pixmap Background1 = new Pixmap(44, 44, Pixmap.Format.RGB888);
         Background1.setColor(new Color(.8f, .8f, .8f, 1));
