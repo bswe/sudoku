@@ -279,7 +279,11 @@ public class sudoku extends ApplicationAdapter {
                                             new Vector(), new Vector(), new Vector(),
                                             new Vector(), new Vector(), new Vector()};
 
+    private List<Integer> numbers = Arrays.asList(new Integer[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
+
     private cell selectedCell = null;
+
+    private Vector rowPermutations = new Vector();
 
     LabelStyle style1, style2, style3, style4;
 
@@ -420,29 +424,52 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
-	private void createPuzzle () {
-        cell c;
-        List<Integer> numbers = Arrays.asList(new Integer[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
-
-        /*
-        // code to display the blocks lists to see that they are correctly created
-        for (int i=0; i < 9; i++) {
-            System.out.printf("block %d: ", i);
-            Iterator l = blocks[i].iterator();
-            while (l.hasNext()) {
-                c = ((cell)l.next());
-                System.out.printf("%s, ", c.getName());
-                }
-            System.out.printf("\n");
+    private void findPermutations(Vector row, Vector<Integer> numbers) {
+        // recursively construct all permutations of an ordered set of n numbers
+        if (numbers.size() == 1) {
+            // found a complete set, so save it
+            row.addElement(numbers.get(0));
+            rowPermutations.addElement(row);
             }
-        */
+        else {
+            // iterate thru the rest of all the possible numbers left
+            int size = numbers.size();
+            for (int i=0; i < size; i++) {
+                // remove the number being used from the numbers left
+                int n = numbers.remove(i);
+                // use the number removed above by adding it to the set
+                row.add(n);
+                // find all possible permutations
+                findPermutations(row, numbers);
+                // remove the number just used from the set
+                row.remove(row.size()-1);
+                // restore the number just used back to the numbers left
+                numbers.add(i, n);
+                }
+            }
+        }
 
+
+    private void analyzeMode() {
+        Vector v = new Vector(numbers);
+        rowPermutations.removeAllElements();
+        findPermutations(new Vector(), v);
+        System.out.printf("# of row permutations = %d\n", rowPermutations.size());
+        }
+
+
+    private void clearBoard() {
         // clear the board by resetting board values to -1
-        for (int i = 0; i < 9; i++) {
-            for (int j = 0; j < 9; j++) {
+        for (int i = 0; i < 9; i++)
+            for (int j = 0; j < 9; j++)
                 board[i][j].setValue(-1);
-                }
-            }
+        }
+
+
+    private void createPuzzle() {
+        cell c;
+
+        clearBoard();
 
         // create a valid board solution
         Collections.shuffle(numbers);
@@ -590,12 +617,26 @@ public class sudoku extends ApplicationAdapter {
 
 
     private void Initialize () {
+        TextButton button;
         AddBoardToStage();
+
+        /*
+        // code to display the blocks lists to see that they are correctly created
+        for (int i=0; i < 9; i++) {
+            System.out.printf("block %d: ", i);
+            Iterator l = blocks[i].iterator();
+            while (l.hasNext()) {
+                c = ((cell)l.next());
+                System.out.printf("%s, ", c.getName());
+                }
+            System.out.printf("\n");
+            }
+        */
 
         // create number buttons
         Table table = new Table(skin);
         for (int i=1; i <= 9; i++) {
-            TextButton button = createNumberButton(i);
+            button = createNumberButton(i);
             table.add(button);
             }
         table.setBounds(0, 100, SCREEN_WIDTH, 20);
@@ -603,14 +644,34 @@ public class sudoku extends ApplicationAdapter {
         stage.addActor(table);
 
         // create the "create puzzle" button
-		final TextButton button1 = new TextButton ("Create\nPuzzle", skin, "default");
-		button1.setWidth (75);
-		button1.setHeight (40);
-        button1.addListener(new ClickListener() {
+        button = new TextButton ("Create\nPuzzle", skin, "default");
+        button.setWidth (75);
+        button.setHeight (40);
+        button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) { createPuzzle(); }});
-		button1.setPosition(0, 0);
-		stage.addActor (button1);
+        button.setPosition(0, 0);
+        stage.addActor (button);
+
+        // create the "Analyze Mode" button
+        button = new TextButton ("Analyze\nMode", skin, "default");
+        button.setWidth (75);
+        button.setHeight (40);
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) { analyzeMode(); }});
+        button.setPosition(80, 0);
+        stage.addActor (button);
+
+        // create the "Clear Board" button
+        button = new TextButton ("Clear\nBoard", skin, "default");
+        button.setWidth (75);
+        button.setHeight (40);
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) { clearBoard(); }});
+        button.setPosition(160, 0);
+        stage.addActor (button);
 
 		/*
 		// create the "Change Password" button
