@@ -43,6 +43,7 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.prefs.InvalidPreferencesFormatException;
 import java.util.Vector;
@@ -165,16 +166,22 @@ class cell {
             block.removeElement(this.value);
             }
         this.value = value;
-        if (this.value != 0) {
+        if (this.value > 0) {
             row.add(this.value);
             column.add(this.value);
             block.add(this.value);
-            }
-        if (this.value == 0)
-            label.setText("");
-        else
             label.setText(Integer.toString(this.value));
+            }
+        else
+            label.setText("");
         //System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
+        }
+
+    public boolean canSetValue (int value) {
+        if (row.contains(value)) return false;
+        if (column.contains(value)) return false;
+        if (block.contains(value)) return false;
+        return true;
         }
 
     public String getName() { return name; }
@@ -194,6 +201,22 @@ class cell {
     }
 
 }
+
+class valueVectors {
+    Vector[] rows, columns, blocks;
+
+    valueVectors() {
+        rows = new Vector[] {new Vector(), new Vector(), new Vector(),
+                             new Vector(), new Vector(), new Vector(),
+                             new Vector(), new Vector(), new Vector()};
+        columns = new Vector[] {new Vector(), new Vector(), new Vector(),
+                                new Vector(), new Vector(), new Vector(),
+                                new Vector(), new Vector(), new Vector()};
+        blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
+                               new Vector(), new Vector(), new Vector(),
+                               new Vector(), new Vector(), new Vector()};
+        }
+    }
 
 
 // Main application class
@@ -248,12 +271,10 @@ public class sudoku extends ApplicationAdapter {
 
     private SystemAccess systemAccess;          // to access platform clipboards & permissions
 
-    private Vector[] rows = new Vector[] {new Vector(), new Vector(), new Vector(),
-                                          new Vector(), new Vector(), new Vector(),
-                                          new Vector(), new Vector(), new Vector()};
-    private Vector[] columns = new Vector[] {new Vector(), new Vector(), new Vector(),
-                                             new Vector(), new Vector(), new Vector(),
-                                             new Vector(), new Vector(), new Vector()};
+    private valueVectors values = new valueVectors();
+
+    private cell[][] board = new cell[9][9];
+
     private Vector[] blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
                                             new Vector(), new Vector(), new Vector(),
                                             new Vector(), new Vector(), new Vector()};
@@ -393,6 +414,61 @@ public class sudoku extends ApplicationAdapter {
 	    }
 
 
+	private void fillRow(int r, List<Integer> n) {
+        for (int i = 0; i < 9; i++)
+            board[r][i].setValue(n.get(i));
+        }
+
+
+	private void createPuzzle () {
+        cell c;
+        List<Integer> numbers = Arrays.asList(new Integer[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
+
+        /*
+        // code to display the blocks lists to see that they are correctly created
+        for (int i=0; i < 9; i++) {
+            System.out.printf("block %d: ", i);
+            Iterator l = blocks[i].iterator();
+            while (l.hasNext()) {
+                c = ((cell)l.next());
+                System.out.printf("%s, ", c.getName());
+                }
+            System.out.printf("\n");
+            }
+        */
+
+        // clear the board by resetting board values to -1
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                board[i][j].setValue(-1);
+                }
+            }
+
+        // create a valid board solution
+        Collections.shuffle(numbers);
+        fillRow(0, numbers);
+        Collections.rotate(numbers, -3);
+        fillRow(1, numbers);
+        Collections.rotate(numbers, -3);
+        fillRow(2, numbers);
+        Collections.rotate(numbers, -1);
+        fillRow(3, numbers);
+        Collections.rotate(numbers, -3);
+        fillRow(4, numbers);
+        Collections.rotate(numbers, -3);
+        fillRow(5, numbers);
+        Collections.rotate(numbers, -1);
+        fillRow(6, numbers);
+        Collections.rotate(numbers, -3);
+        fillRow(7, numbers);
+        Collections.rotate(numbers, -3);
+        fillRow(8, numbers);
+
+        // remove from view some of the values to make puzzle
+        board[1][3].setValue(board[1][3].getValue()*-1);
+        }
+
+
     private void cellClicked (cell c) {
         //DisplayInformationDialog(c.getName(), "cell clicked: v=" + Integer.toString(c.getValue()));
         if (selectedCell == c)
@@ -456,7 +532,7 @@ public class sudoku extends ApplicationAdapter {
         cell c;
         Vector block;
         Color color;
-        Set<Integer> cornerBlocks = new HashSet(Arrays.asList(1, 3, 7, 9));
+        Set<Integer> sideBlocks = new HashSet(Arrays.asList(2, 4, 6, 8));
         int br, bc, ff, b;
 
         Table table = new Table(skin);
@@ -474,16 +550,16 @@ public class sudoku extends ApplicationAdapter {
                 bc = (j / 3) + 1;
                 ff = (2 - (j / 3)) * (i / 3);
                 b = (br * bc) + ff;
-                block = blocks[b-1];
+                block = values.blocks[b-1];
                 //System.out.printf("r=%d, c=%d, br=%d, bc=%d, ff=%d, b=%d\n", i , j, br, bc, ff, b);
                 Label l = new Label("", skin);
-                if (cornerBlocks.contains(b))
+                if (sideBlocks.contains(b))
                     l.setStyle(style2);
-                else if (b == 5)
-                    l.setStyle(style1);
                 else
                     l.setStyle(style3);
-                c = new cell(i+1, j+1, rows[i], columns[j], block, l);
+                c = new cell(i+1, j+1, values.rows[i], values.columns[j], block, l);
+                board[i][j] = c;
+                blocks[b-1].add(c);
                 //l.setText(c.getName());
                 l.setAlignment(Align.center);
                 table.add(l).height(c.getSize()).width(c.getSize());
@@ -494,23 +570,8 @@ public class sudoku extends ApplicationAdapter {
                 }
             table.row();
             }
-
         table.setBounds(0, 260, SCREEN_WIDTH, SCREEN_HEIGHT-260);
         stage.addActor (table);
-
-        /*
-        pixmap = new Pixmap (1, 1, Pixmap.Format.RGB565);
-        pixmap.setColor (Color.WHITE);
-        pixmap.fill();
-        ScrollPane scroller = new ScrollPane (table);
-        scrollTable = new Table (skin);
-        scrollTable.setBounds (0, 260, SCREEN_WIDTH, SCREEN_HEIGHT-260);
-        scrollTable.align (Align.left);
-        // force scroller to fill the scroll table so user can touch any area and get it to scroll
-        scrollTable.add (scroller).expand().fill();
-        //scrollTable.setBackground (new TextureRegionDrawable (new TextureRegion (new Texture (pixmap))));
-        stage.addActor (scrollTable);
-        */
 
         Grid grid = new Grid(2, Color.BLACK, 9, 9, 44);
         grid.setPosition(2, 262);
@@ -531,60 +592,27 @@ public class sudoku extends ApplicationAdapter {
     private void Initialize () {
         AddBoardToStage();
 
-        // create number button group
+        // create number buttons
         Table table = new Table(skin);
-        //ButtonGroup numbersGroup = new ButtonGroup();
         for (int i=1; i <= 9; i++) {
             TextButton button = createNumberButton(i);
             table.add(button);
-            //numbersGroup.add(button);
             }
         table.setBounds(0, 100, SCREEN_WIDTH, 20);
         table.setPosition(0, 100);
         stage.addActor(table);
-        //numbersGroup.setMaxCheckCount(1);
-        //numbersGroup.setMinCheckCount(0);
-        //numbersGroup.setUncheckLast(true);
 
-        // create the "Add Account" button
-		final TextButton button1 = new TextButton ("Add\nAccount", skin, "default");
+        // create the "create puzzle" button
+		final TextButton button1 = new TextButton ("Create\nPuzzle", skin, "default");
 		button1.setWidth (75);
 		button1.setHeight (40);
-		button1.addListener (new ClickListener() {
+        button1.addListener(new ClickListener() {
             @Override
-			public void clicked (InputEvent event, float x, float y) {
-				firstTextField = new TextField ("", skin);
-				secondTextField = new TextField ("", skin);
-				thirdTextField = new TextField ("", skin);
-				Table table = new Table (skin);
-				table.add ("AccountName ").align (Align.right);
-				table.add (firstTextField);
-				table.row();
-				table.add ("Username ").align (Align.right);
-				table.add (secondTextField);
-				table.row();
-				table.add ("Password ").align (Align.right);
-				table.add (thirdTextField);
-				Dialog editDialog = new Dialog ("Add Account", skin) {
-					protected void result (Object object) {
-						//Gdx.app.log (TAG, "AddAccount dialog: chosen = " + object);
-						//Gdx.app.log (TAG, "AddAccount dialog: name = " + firstTextField.getText());
-						if (object.equals ("add"))
-							//AddNewAccount();
-                        Gdx.input.setOnscreenKeyboardVisible (false);
-                        }
-				    };
-				editDialog.getContentTable().add (table);
-				editDialog.button ("Add", "add");
-				editDialog.button ("Cancel", "cancel");
-                editDialog.scaleBy (.4f);
-                editDialog.show (stage).setX (5f);
-				stage.setKeyboardFocus (firstTextField);
-				}
-			});
+            public void clicked(InputEvent event, float x, float y) { createPuzzle(); }});
 		button1.setPosition(0, 0);
 		stage.addActor (button1);
 
+		/*
 		// create the "Change Password" button
 		final TextButton button2 = new TextButton ("Change\nPassword", skin, "default");
 		button2.setWidth (85);
@@ -705,6 +733,7 @@ public class sudoku extends ApplicationAdapter {
 			});
 		button5.setPosition (322, 0);
 		stage.addActor (button5);
+        */
 
 		appState = AppStates.INITIALIZED;
         Gdx.input.setInputProcessor (inputMultiplexer);
