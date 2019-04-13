@@ -2,6 +2,7 @@ package com.bswe.sudoku;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Preferences;
@@ -139,10 +140,12 @@ class Grid extends Actor {
 
 class cell {
     int rowIndex, columnIndex, size, value = -1;
-   String name;
+    String name;
     Vector row, column, block;
     Label label;
     LabelStyle defaultStyle;
+    int originalValue;
+    boolean locked;
 
     cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Label l) {
         this.rowIndex = rowIndex;
@@ -158,6 +161,9 @@ class cell {
         }
 
     public void setValue(int value) {
+        if (value == 0) locked = false;
+        if (locked)
+            return;
         if (this.value == value)
             return;
         if (this.value > 0) {
@@ -172,8 +178,10 @@ class cell {
             block.add(this.value);
             label.setText(Integer.toString(this.value));
             }
-        else
+        else {
             label.setText("");
+            originalValue = value;
+            }
         //System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
         }
 
@@ -188,17 +196,30 @@ class cell {
 
     public int getValue() {
         return value;
-    }
+        }
 
     public int getSize() {
         return size;
-    }
+        }
+
+    public void lock() {
+        locked = true;
+        }
+
+    public boolean isLocked() {
+        return locked;
+        }
 
     public void setStyle(LabelStyle style) { label.setStyle(style); }
 
     public void unsetStyle() {
         label.setStyle(defaultStyle);
-    }
+        }
+
+    public void eraseValue() {
+        value = originalValue;
+        label.setText("");
+        }
 
 }
 
@@ -286,6 +307,15 @@ public class sudoku extends ApplicationAdapter {
     private Vector rowPermutations = new Vector();
 
     LabelStyle style1, style2, style3, style4;
+
+    TextButton lastNumberClicked = null;
+
+    private enum GameModes {CREATE_PUZZLE,
+                            PLAY_PUZZLE,
+                            ANALYZE_PUZZLE,
+                            EDIT_PUZZLE};
+
+    private GameModes mode = GameModes.EDIT_PUZZLE;
 
 
     public sudoku (SystemAccess sa) {
@@ -450,15 +480,19 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
-    private void analyzeMode() {
+    private void analyzePuzzle() {
+        mode = GameModes.ANALYZE_PUZZLE;
+        /*
         Vector v = new Vector(numbers);
         rowPermutations.removeAllElements();
         findPermutations(new Vector(), v);
         System.out.printf("# of row permutations = %d\n", rowPermutations.size());
+        */
         }
 
 
-    private void clearBoard() {
+    private void clearPuzzle() {
+        mode = GameModes.EDIT_PUZZLE;
         // clear the board by resetting board values to -1
         for (int i = 0; i < 9; i++)
             for (int j = 0; j < 9; j++)
@@ -467,9 +501,27 @@ public class sudoku extends ApplicationAdapter {
 
 
     private void createPuzzle() {
+        mode = GameModes.CREATE_PUZZLE;
+        // lock all cells with values as they are the clues and can't be set by user
+        for (int i = 0; i < 9; i++)
+            for (int j = 0; j < 9; j++)
+                if (board[i][j].getValue() > 0) {
+                    board[i][j].lock();
+                    board[i][j].setStyle(style1);
+                    }
+        // TODO: add code to try to find puzzle solution
+        }
+
+
+    private void playPuzzle() {
+        mode = GameModes.PLAY_PUZZLE;
+    }
+
+
+    private void newPuzzle() {
         cell c;
 
-        clearBoard();
+        clearPuzzle();
 
         // create a valid board solution
         Collections.shuffle(numbers);
@@ -498,6 +550,8 @@ public class sudoku extends ApplicationAdapter {
 
     private void cellClicked (cell c) {
         //DisplayInformationDialog(c.getName(), "cell clicked: v=" + Integer.toString(c.getValue()));
+        if ((mode != GameModes.PLAY_PUZZLE) && (lastNumberClicked != null))
+            c.setValue(Integer.parseInt(lastNumberClicked.getText().toString()));
         if (selectedCell == c)
             return;
         // TODO: change focus highlighting on board
@@ -505,14 +559,32 @@ public class sudoku extends ApplicationAdapter {
             selectedCell.unsetStyle();
         selectedCell = c;
         c.setStyle(style4);
+
         }
 
 
-    private void numberClicked (int n) {
+    private void backSpace() {
+        if (selectedCell != null)
+            selectedCell.eraseValue();
+        }
+
+
+    private void numberClicked (TextButton button, int n, boolean doubleClicked) {
         //DisplayInformationDialog("numberClicked", "number clicked: v=" + Integer.toString(n));
-        // TODO: set value of selected cell
         if (selectedCell != null)
             selectedCell.setValue(n);
+        if (doubleClicked) {
+            // toggle number button off if it was on
+            if (lastNumberClicked != null)
+                lastNumberClicked.setColor(1, 1, 1, 1);
+            if (lastNumberClicked == button)
+                lastNumberClicked = null;
+            else {
+                lastNumberClicked = button;
+                button.setColor(.8f, .8f, .4f, 1);
+                }
+            }
+        //System.out.printf("%s\ncolor=%s", button, button.getColor());
         }
 
 
@@ -611,7 +683,14 @@ public class sudoku extends ApplicationAdapter {
         final int N = n;
         button.addListener(new ClickListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) { numberClicked(N); }});
+            public void clicked(InputEvent event, float x, float y) {
+                if (getTapCount() == 2)
+                    numberClicked(button, N, true);
+                else
+                    numberClicked(button, N, false);
+
+                }
+            });
         return button;
         }
 
@@ -639,8 +718,14 @@ public class sudoku extends ApplicationAdapter {
             button = createNumberButton(i);
             table.add(button);
             }
+        button = new TextButton ("BS", skin, "default");
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) { backSpace(); }});
+        table.add(button);
+
         table.setBounds(0, 100, SCREEN_WIDTH, 20);
-        table.setPosition(0, 100);
+        table.setPosition(0, 230);
         stage.addActor(table);
 
         // create the "create puzzle" button
@@ -650,27 +735,47 @@ public class sudoku extends ApplicationAdapter {
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) { createPuzzle(); }});
-        button.setPosition(0, 0);
+        button.setPosition(4, 0);
         stage.addActor (button);
 
         // create the "Analyze Mode" button
-        button = new TextButton ("Analyze\nMode", skin, "default");
+        button = new TextButton ("Analyze\nPuzzle", skin, "default");
         button.setWidth (75);
         button.setHeight (40);
         button.addListener(new ClickListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) { analyzeMode(); }});
-        button.setPosition(80, 0);
+            public void clicked(InputEvent event, float x, float y) { analyzePuzzle(); }});
+        button.setPosition(84, 0);
         stage.addActor (button);
 
-        // create the "Clear Board" button
-        button = new TextButton ("Clear\nBoard", skin, "default");
+        // create the "Clear Puzzle" button
+        button = new TextButton ("Clear\nPuzzle", skin, "default");
         button.setWidth (75);
         button.setHeight (40);
         button.addListener(new ClickListener() {
             @Override
-            public void clicked(InputEvent event, float x, float y) { clearBoard(); }});
-        button.setPosition(160, 0);
+            public void clicked(InputEvent event, float x, float y) { clearPuzzle(); }});
+        button.setPosition(164, 0);
+        stage.addActor (button);
+
+        // create the "Generate Puzzle" button
+        button = new TextButton ("New\nPuzzle", skin, "default");
+        button.setWidth (75);
+        button.setHeight (40);
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) { newPuzzle(); }});
+        button.setPosition(244, 0);
+        stage.addActor (button);
+
+        // create the "Play Puzzle" button
+        button = new TextButton ("Play\nPuzzle", skin, "default");
+        button.setWidth (75);
+        button.setHeight (40);
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) { playPuzzle(); }});
+        button.setPosition(324, 0);
         stage.addActor (button);
 
 		/*
