@@ -139,7 +139,7 @@ class Grid extends Actor {
 
 
 class cell {
-    int rowIndex, columnIndex, size, value = -1;
+    int rowIndex, columnIndex, size, value = -1;   // set to -1 so first call to setValue(0) runs
     String name;
     Vector row, column, block;
     Label label;
@@ -161,7 +161,10 @@ class cell {
         }
 
     public void setValue(int value) {
-        if (value == 0) locked = false;
+        if (value == 0) {
+            locked = false;
+            label.setStyle(defaultStyle);
+            }
         if (locked)
             return;
         if (this.value == value)
@@ -496,7 +499,7 @@ public class sudoku extends ApplicationAdapter {
         // clear the board by resetting board values to -1
         for (int i = 0; i < 9; i++)
             for (int j = 0; j < 9; j++)
-                board[i][j].setValue(-1);
+                board[i][j].setValue(0);
         }
 
 
