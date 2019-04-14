@@ -1,13 +1,13 @@
 {
   "platform": "windows64",
   "jdk": "c:/Program Files/Java/jdk1.8.0_144",
-  "executable": "pwallet",
+  "executable": "sudoku",
   "classpath": [
-    "desktop/build/libs/pWallet-1.4.jar"
+    "desktop/build/libs/sudoku-1.4.jar"
   ],
   "mainclass": "com.bswe.DesktopLauncher",
   "vmargs": [],
   "resources": [],
   "minimizejre": "soft",
-  "output": "c:/Users/wcb/pwallet"
+  "output": "c:/Users/wcb/sudoku"
 }

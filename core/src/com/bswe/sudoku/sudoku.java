@@ -226,10 +226,10 @@ class cell {
 
 }
 
-class valueVectors {
+class cellVectors {
     Vector[] rows, columns, blocks;
 
-    valueVectors() {
+    cellVectors() {
         rows = new Vector[] {new Vector(), new Vector(), new Vector(),
                              new Vector(), new Vector(), new Vector(),
                              new Vector(), new Vector(), new Vector()};
@@ -239,6 +239,23 @@ class valueVectors {
         blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
                                new Vector(), new Vector(), new Vector(),
                                new Vector(), new Vector(), new Vector()};
+        }
+    }
+
+
+class valueVectors {
+    Vector[] rows, columns, blocks;
+
+    valueVectors() {
+        rows = new Vector[] {new Vector(), new Vector(), new Vector(),
+                new Vector(), new Vector(), new Vector(),
+                new Vector(), new Vector(), new Vector()};
+        columns = new Vector[] {new Vector(), new Vector(), new Vector(),
+                new Vector(), new Vector(), new Vector(),
+                new Vector(), new Vector(), new Vector()};
+        blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
+                new Vector(), new Vector(), new Vector(),
+                new Vector(), new Vector(), new Vector()};
         }
     }
 
@@ -297,11 +314,9 @@ public class sudoku extends ApplicationAdapter {
 
     private valueVectors values = new valueVectors();
 
-    private cell[][] board = new cell[9][9];
+    private cellVectors cells = new cellVectors();
 
-    private Vector[] blocks = new Vector[] {new Vector(), new Vector(), new Vector(),
-                                            new Vector(), new Vector(), new Vector(),
-                                            new Vector(), new Vector(), new Vector()};
+    private cell[][] board = new cell[9][9];
 
     private List<Integer> numbers = Arrays.asList(new Integer[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
 
@@ -504,6 +519,11 @@ public class sudoku extends ApplicationAdapter {
 
 
     private void createPuzzle() {
+        int numberOfEmptyCells = 81;
+        Vector row, column, block;
+        cell c;
+        boolean known;
+
         mode = GameModes.CREATE_PUZZLE;
         // lock all cells with values as they are the clues and can't be set by user
         for (int i = 0; i < 9; i++)
@@ -511,8 +531,28 @@ public class sudoku extends ApplicationAdapter {
                 if (board[i][j].getValue() > 0) {
                     board[i][j].lock();
                     board[i][j].setStyle(style1);
+                    numberOfEmptyCells--;
                     }
         // TODO: add code to try to find puzzle solution
+        while (numberOfEmptyCells > 0) {
+            for (int i = 0; i < 9; i++)
+                for (int j = 0; j < 9; j++)
+                    if (board[i][j].getValue() == 0) {
+                        c = board[i][j];
+                        for (int n = 1; n <= 9; n++) {
+                            if (! c.canSetValue(n)) continue;
+                            block = cells.blocks[c.columnIndex];
+                            known = true;
+                            for (int k = 0; k < 9; k++)
+                                if (((cell)block.get(k)).canSetValue(n)) {
+                                    known = false;
+                                    break;
+                                    }
+                            if (! known) continue;
+                            c.setValue(n*-1);
+                            }
+                        }
+            }
         }
 
 
@@ -661,7 +701,9 @@ public class sudoku extends ApplicationAdapter {
                     l.setStyle(style3);
                 c = new cell(i+1, j+1, values.rows[i], values.columns[j], block, l);
                 board[i][j] = c;
-                blocks[b-1].add(c);
+                cells.blocks[b-1].add(c);
+                cells.columns[j].add(c);
+                cells.rows[i].add(c);
                 //l.setText(c.getName());
                 l.setAlignment(Align.center);
                 table.add(l).height(c.getSize()).width(c.getSize());
