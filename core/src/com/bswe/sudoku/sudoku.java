@@ -125,9 +125,17 @@ class Grid extends Actor {
         sr.begin(ShapeRenderer.ShapeType.Line);
         Gdx.gl20.glLineWidth(lineWidth);
         for (int i=0; i <= numberOfRows; i++)
-            sr.line(x, y + (i * cellSize), x + width, y + (i * cellSize));
+            if ((i == 3) || (i == 6)) {
+                sr.rectLine(x, y + (i * cellSize), x + width, y + (i * cellSize), lineWidth);
+                }
+            else
+                sr.line(x, y + (i * cellSize), x + width, y + (i * cellSize));
         for (int i=0; i <= numberOfColumns; i++)
-            sr.line(x + (i * cellSize), y, x + (i * cellSize), y + height);
+            if ((i == 3) || (i == 6)) {
+                sr.rectLine(x + (i * cellSize), y, x + (i * cellSize), y + height, lineWidth);
+            }
+            else
+                sr.line(x + (i * cellSize), y, x + (i * cellSize), y + height);
         sr.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
         Gdx.gl.glLineWidth(1f);
@@ -325,7 +333,7 @@ public class sudoku extends ApplicationAdapter {
 
     private Vector rowPermutations = new Vector();
 
-    LabelStyle style1, style2, style3, style4, style5;
+    LabelStyle style1, white, gray, selected, clue;
 
     TextButton lastNumberClicked = null;
 
@@ -375,26 +383,26 @@ public class sudoku extends ApplicationAdapter {
         backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
         backGround.setColor(new Color(1, 1, 1, 1));
         backGround.fill();
-        style2 = new LabelStyle(temp.getStyle());
-        style2.background = new Image(new Texture(backGround)).getDrawable();
+        white = new LabelStyle(temp.getStyle());
+        white.background = new Image(new Texture(backGround)).getDrawable();
 
         backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
-        backGround.setColor(new Color(.9f, .9f, .9f, 1));
+        backGround.setColor(new Color(.8f, .8f, .8f, 1));
         backGround.fill();
-        style3 = new LabelStyle(temp.getStyle());
-        style3.background = new Image(new Texture(backGround)).getDrawable();
+        gray = new LabelStyle(temp.getStyle());
+        gray.background = new Image(new Texture(backGround)).getDrawable();
 
         backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
         backGround.setColor(new Color(.85f, 1, .85f, 1));
         backGround.fill();
-        style4 = new LabelStyle(temp.getStyle());
-        style4.background = new Image(new Texture(backGround)).getDrawable();
+        selected = new LabelStyle(temp.getStyle());
+        selected.background = new Image(new Texture(backGround)).getDrawable();
 
         backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
-        backGround.setColor(new Color(.85f, .85f, .4f, 1));
+        backGround.setColor(new Color(.85f, .75f, .5f, 1));
         backGround.fill();
-        style5 = new LabelStyle(temp.getStyle());
-        style5.background = new Image(new Texture(backGround)).getDrawable();
+        clue = new LabelStyle(temp.getStyle());
+        clue.background = new Image(new Texture(backGround)).getDrawable();
 		}
 
 
@@ -540,7 +548,7 @@ public class sudoku extends ApplicationAdapter {
             for (int j = 0; j < 9; j++)
                 if (board[i][j].getValue() > 0) {
                     board[i][j].lock();
-                    board[i][j].setStyle(style5);
+                    board[i][j].setStyle(clue);
                     numberOfEmptyCells--;
                     }
         for (int i = 0; i < 9; i++)
@@ -634,7 +642,7 @@ public class sudoku extends ApplicationAdapter {
         if (selectedCell != null)
             selectedCell.unsetStyle();
         selectedCell = c;
-        c.setStyle(style4);
+        c.setStyle(selected);
 
         }
 
@@ -661,26 +669,6 @@ public class sudoku extends ApplicationAdapter {
                 }
             }
         //System.out.printf("%s\ncolor=%s", button, button.getColor());
-        }
-
-
-    private void CopyToSystemClipboard (String s) {
-        final String S = s;
-        Dialog confirmationDialog = new Dialog ("Copy Password Confirmation", skin) {
-            protected void result (Object object) {
-                //Gdx.app.log (TAG, "CopyToSystemClipboard confirmation dialog: chosen = " + object);
-                systemAccess.WriteClipboard (S);
-                }
-            };
-        Table table = new Table();
-        Label label = new Label ("Confirm the copying\n\rof password\n\r" + S + "\n\rto system clipboard", skin);
-        label.setAlignment (Align.center);
-        table.add (label);
-        confirmationDialog.getContentTable().add (table);
-        confirmationDialog.button ("OK", "ok");
-        confirmationDialog.button ("Cancel", "cancel");
-        confirmationDialog.scaleBy (.5f);
-        confirmationDialog.show(stage).setX (10f);
         }
 
 
@@ -729,9 +717,9 @@ public class sudoku extends ApplicationAdapter {
                 //System.out.printf("r=%d, c=%d, br=%d, bc=%d, ff=%d, b=%d\n", i , j, br, bc, ff, b);
                 Label l = new Label("", skin);
                 if (sideBlocks.contains(b))
-                    l.setStyle(style2);
+                    l.setStyle(white);
                 else
-                    l.setStyle(style3);
+                    l.setStyle(gray);
                 c = new cell(i+1, j+1, b-1, values.rows[i], values.columns[j], valuesBlock, l);
                 board[i][j] = c;
                 cells.blocks[b-1].add(c);
@@ -750,7 +738,7 @@ public class sudoku extends ApplicationAdapter {
         table.setBounds(0, 260, SCREEN_WIDTH, SCREEN_HEIGHT-260);
         stage.addActor (table);
 
-        Grid grid = new Grid(2, Color.BLACK, 9, 9, 44);
+        Grid grid = new Grid(1, Color.BLACK, 9, 9, 44);
         grid.setPosition(2, 262);
         stage.addActor (grid);
         }
@@ -857,7 +845,7 @@ public class sudoku extends ApplicationAdapter {
         stage.addActor (button);
 
 
-		// create the "Restore Game" button
+		// create the "Load Game" button
 		final TextButton button4 = new TextButton ("Load\nGame", skin, "default");
 		button4.setWidth (75);
 		button4.setHeight (40);
@@ -949,6 +937,7 @@ public class sudoku extends ApplicationAdapter {
         catch (Exception e) {
             Gdx.app.log (TAG, "loadGame: Error cause - " + e.getCause().getLocalizedMessage());
             DisplayError ("loadGame", e.getCause().getLocalizedMessage());
+            return;
             }
         System.out.printf("loadGame: s=%s\n", s);
         String delimiter = "[,]";
