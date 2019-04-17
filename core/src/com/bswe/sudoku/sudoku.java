@@ -139,7 +139,7 @@ class Grid extends Actor {
 
 
 class cell {
-    int rowIndex, columnIndex, size, value = -1;   // set to -1 so first call to setValue(0) runs
+    int rowIndex, columnIndex, containingBlock, size, value = -1;   // set to -1 so first call to setValue(0) runs
     String name;
     Vector row, column, block;
     Label label;
@@ -147,9 +147,10 @@ class cell {
     int originalValue;
     boolean locked;
 
-    cell(int rowIndex, int columnIndex, Vector row, Vector column, Vector block, Label l) {
+    cell(int rowIndex, int columnIndex, int containingBlock, Vector row, Vector column, Vector block, Label l) {
         this.rowIndex = rowIndex;
         this.columnIndex = columnIndex;
+        this.containingBlock = containingBlock;
         this.row = row;
         this.column = column;
         this.block = block;
@@ -160,35 +161,36 @@ class cell {
         setValue(0);
         }
 
-    public void setValue(int value) {
-        if (value == 0) {
+    public void setValue(int newValue) {
+        if (newValue == 0) {
+            // if new value is 0 (effective reset) unlock cell
             locked = false;
             label.setStyle(defaultStyle);
             }
-        if (locked)
+        if ((locked) || (value == newValue))
             return;
-        if (this.value == value)
-            return;
-        if (this.value > 0) {
-            row.removeElement(this.value);
-            column.removeElement(this.value);
-            block.removeElement(this.value);
+        if (value != 0) {
+            row.removeElement(Math.abs(value));
+            column.removeElement(Math.abs(value));
+            block.removeElement(Math.abs(value));
             }
-        this.value = value;
-        if (this.value > 0) {
-            row.add(this.value);
-            column.add(this.value);
-            block.add(this.value);
-            label.setText(Integer.toString(this.value));
+        value = newValue;
+        if (value != 0) {
+            row.add(Math.abs(value));
+            column.add(Math.abs(value));
+            block.add(Math.abs(value));
             }
-        else {
+        if (value > 0)
+            label.setText(Integer.toString(value));
+        else {    // display nothing for 0 (empty cell) or negative numbers (hidden answer)
             label.setText("");
-            originalValue = value;
+            originalValue = value;   // only for 0 (empty cell) or negative values (hidden puzzle answer values)
             }
         //System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
         }
 
     public boolean canSetValue (int value) {
+        if (this.value != 0) return false;
         if (row.contains(value)) return false;
         if (column.contains(value)) return false;
         if (block.contains(value)) return false;
@@ -220,6 +222,8 @@ class cell {
         }
 
     public void eraseValue() {
+        if (locked)
+            return;
         value = originalValue;
         label.setText("");
         }
@@ -282,9 +286,6 @@ public class sudoku extends ApplicationAdapter {
 
 	private String inputPassword = "";
 
-    // used for user input for login dialog since logout can happen at any time even when other
-    // dialog boxes are being displayed, so this dialog cannot share the other fields below
-    private TextField passwordTextField;
     // used for user input from all dialog boxes except login dialog
     private TextField firstTextField;
 	private TextField secondTextField;
@@ -324,7 +325,7 @@ public class sudoku extends ApplicationAdapter {
 
     private Vector rowPermutations = new Vector();
 
-    LabelStyle style1, style2, style3, style4;
+    LabelStyle style1, style2, style3, style4, style5;
 
     TextButton lastNumberClicked = null;
 
@@ -344,6 +345,7 @@ public class sudoku extends ApplicationAdapter {
 
 	@Override
 	public void create () {
+        Pixmap backGround;
         //Gdx.app.log (TAG, "create: application class = " + Gdx.app.getClass().getName());
 
         // init preferences object for persistent storage
@@ -364,29 +366,35 @@ public class sudoku extends ApplicationAdapter {
 
         // create label styles for different color backgrounds for cells
         Label temp = new Label("", skin);
-        Pixmap Background1 = new Pixmap(44, 44, Pixmap.Format.RGB888);
-        Background1.setColor(new Color(.8f, .8f, .8f, 1));
-        Background1.fill();
+        backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        backGround.setColor(new Color(.8f, .8f, .8f, 1));
+        backGround.fill();
         style1 = new LabelStyle(temp.getStyle());
-        style1.background = new Image(new Texture(Background1)).getDrawable();
+        style1.background = new Image(new Texture(backGround)).getDrawable();
 
-        Pixmap Background2 = new Pixmap(44, 44, Pixmap.Format.RGB888);
-        Background2.setColor(new Color(1, 1, 1, 1));
-        Background2.fill();
+        backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        backGround.setColor(new Color(1, 1, 1, 1));
+        backGround.fill();
         style2 = new LabelStyle(temp.getStyle());
-        style2.background = new Image(new Texture(Background2)).getDrawable();
+        style2.background = new Image(new Texture(backGround)).getDrawable();
 
-        Pixmap Background3 = new Pixmap(44, 44, Pixmap.Format.RGB888);
-        Background3.setColor(new Color(.9f, .9f, .9f, 1));
-        Background3.fill();
+        backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        backGround.setColor(new Color(.9f, .9f, .9f, 1));
+        backGround.fill();
         style3 = new LabelStyle(temp.getStyle());
-        style3.background = new Image(new Texture(Background3)).getDrawable();
+        style3.background = new Image(new Texture(backGround)).getDrawable();
 
-        Pixmap Background4 = new Pixmap(44, 44, Pixmap.Format.RGB888);
-        Background4.setColor(new Color(.85f, 1, .85f, 1));
-        Background4.fill();
+        backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        backGround.setColor(new Color(.85f, 1, .85f, 1));
+        backGround.fill();
         style4 = new LabelStyle(temp.getStyle());
-        style4.background = new Image(new Texture(Background4)).getDrawable();
+        style4.background = new Image(new Texture(backGround)).getDrawable();
+
+        backGround = new Pixmap(44, 44, Pixmap.Format.RGB888);
+        backGround.setColor(new Color(.85f, .85f, .4f, 1));
+        backGround.fill();
+        style5 = new LabelStyle(temp.getStyle());
+        style5.background = new Image(new Texture(backGround)).getDrawable();
 		}
 
 
@@ -466,12 +474,6 @@ public class sudoku extends ApplicationAdapter {
 	    }
 
 
-	private void fillRow(int r, List<Integer> n) {
-        for (int i = 0; i < 9; i++)
-            board[r][i].setValue(n.get(i));
-        }
-
-
     private void findPermutations(Vector row, Vector<Integer> numbers) {
         // recursively construct all permutations of an ordered set of n numbers
         if (numbers.size() == 1) {
@@ -498,14 +500,8 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
-    private void analyzePuzzle() {
-        mode = GameModes.ANALYZE_PUZZLE;
-        /*
-        Vector v = new Vector(numbers);
-        rowPermutations.removeAllElements();
-        findPermutations(new Vector(), v);
-        System.out.printf("# of row permutations = %d\n", rowPermutations.size());
-        */
+    private void createPuzzle() {
+        mode = GameModes.CREATE_PUZZLE;
         }
 
 
@@ -518,46 +514,83 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
-    private void createPuzzle() {
+    private void showHidenValues() {
+        for (int i = 0; i < 9; i++)
+            for (int j = 0; j < 9; j++)
+                board[i][j].label.setText(Integer.toString(board[i][j].getValue()));
+
+    }
+
+
+    private void analyzePuzzle() {
         int numberOfEmptyCells = 81;
         Vector row, column, block;
         cell c;
         boolean known;
 
-        mode = GameModes.CREATE_PUZZLE;
+        mode = GameModes.ANALYZE_PUZZLE;
+        /*
+        Vector v = new Vector(numbers);
+        rowPermutations.removeAllElements();
+        findPermutations(new Vector(), v);
+        System.out.printf("# of row permutations = %d\n", rowPermutations.size());
+        */
         // lock all cells with values as they are the clues and can't be set by user
         for (int i = 0; i < 9; i++)
             for (int j = 0; j < 9; j++)
                 if (board[i][j].getValue() > 0) {
                     board[i][j].lock();
-                    board[i][j].setStyle(style1);
+                    board[i][j].setStyle(style5);
                     numberOfEmptyCells--;
                     }
+        for (int i = 0; i < 9; i++)
+            System.out.printf("row[%d]=%s\n", i, values.rows[i].toString());
+        for (int i = 0; i < 9; i++)
+            System.out.printf("column[%d]=%s\n", i, values.columns[i].toString());
+        for (int i = 0; i < 9; i++)
+            System.out.printf("block[%d]=%s\n", i, values.blocks[i].toString());
+
         // TODO: add code to try to find puzzle solution
-        while (numberOfEmptyCells > 0) {
+        boolean foundOne = true;
+        while ((numberOfEmptyCells > 0) && (foundOne)) {
+            foundOne = false;
             for (int i = 0; i < 9; i++)
                 for (int j = 0; j < 9; j++)
-                    if (board[i][j].getValue() == 0) {
+                    if (board[i][j].getValue() == 0) {  // empty cell, look for possible known value
                         c = board[i][j];
-                        for (int n = 1; n <= 9; n++) {
-                            if (! c.canSetValue(n)) continue;
-                            block = cells.blocks[c.columnIndex];
+                        for (int n = 1; n <= 9; n++) {  // iterate thru all numbers 1-9
+                            if (! c.canSetValue(n)) continue;  // skip cell if number doesn't fit
+                            // search cell's block for any other cells that work for this number
+                            block = cells.blocks[c.containingBlock];
                             known = true;
-                            for (int k = 0; k < 9; k++)
-                                if (((cell)block.get(k)).canSetValue(n)) {
+                            for (int k = 0; k < 9; k++) {
+                                cell otherBlockCell = ((cell) block.get(k));
+                                if (otherBlockCell == c) continue;  // skip cell that's under investigation
+                                if (otherBlockCell.canSetValue(n)) {
                                     known = false;
                                     break;
                                     }
+                                }
                             if (! known) continue;
-                            c.setValue(n*-1);
+                            foundOne = true;
+                            c.setValue(-1*n);
+                            System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
+                            break;
                             }
                         }
             }
+        showHidenValues();
         }
 
 
     private void playPuzzle() {
         mode = GameModes.PLAY_PUZZLE;
+    }
+
+
+    private void fillRow(int r, List<Integer> n) {
+        for (int i = 0; i < 9; i++)
+            board[r][i].setValue(n.get(i));
     }
 
 
@@ -672,7 +705,7 @@ public class sudoku extends ApplicationAdapter {
 
     private void AddBoardToStage () {
         cell c;
-        Vector block;
+        Vector valuesBlock;
         Color color;
         Set<Integer> sideBlocks = new HashSet(Arrays.asList(2, 4, 6, 8));
         int br, bc, ff, b;
@@ -692,14 +725,14 @@ public class sudoku extends ApplicationAdapter {
                 bc = (j / 3) + 1;
                 ff = (2 - (j / 3)) * (i / 3);
                 b = (br * bc) + ff;
-                block = values.blocks[b-1];
+                valuesBlock = values.blocks[b-1];
                 //System.out.printf("r=%d, c=%d, br=%d, bc=%d, ff=%d, b=%d\n", i , j, br, bc, ff, b);
                 Label l = new Label("", skin);
                 if (sideBlocks.contains(b))
                     l.setStyle(style2);
                 else
                     l.setStyle(style3);
-                c = new cell(i+1, j+1, values.rows[i], values.columns[j], block, l);
+                c = new cell(i+1, j+1, b-1, values.rows[i], values.columns[j], valuesBlock, l);
                 board[i][j] = c;
                 cells.blocks[b-1].add(c);
                 cells.columns[j].add(c);
@@ -761,16 +794,16 @@ public class sudoku extends ApplicationAdapter {
         Table table = new Table(skin);
         for (int i=1; i <= 9; i++) {
             button = createNumberButton(i);
-            table.add(button);
+            table.add(button).size(40, 40);
             }
         button = new TextButton ("BS", skin, "default");
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) { backSpace(); }});
-        table.add(button);
+        table.add(button).size(40, 40);
 
         table.setBounds(0, 100, SCREEN_WIDTH, 20);
-        table.setPosition(0, 230);
+        table.setPosition(1, 230);
         stage.addActor(table);
 
         // create the "create puzzle" button
@@ -823,132 +856,108 @@ public class sudoku extends ApplicationAdapter {
         button.setPosition(324, 0);
         stage.addActor (button);
 
-		/*
-		// create the "Change Password" button
-		final TextButton button2 = new TextButton ("Change\nPassword", skin, "default");
-		button2.setWidth (85);
-		button2.setHeight (40);
-		button2.addListener (new ClickListener() {
-            @Override
-			public void clicked (InputEvent event, float x, float y) {
-				firstTextField = new TextField ("", skin);
-				secondTextField = new TextField ("", skin);
-				Table table = new Table (skin);
-				table.add ("new pwd ").align (Align.right);
-				table.add (firstTextField);
-				table.row();
-				table.add ("confirm pwd ").align (Align.right);
-				table.add (secondTextField);
-				Dialog editDialog = new Dialog ("Change Password", skin) {
-					protected void result (Object object) {
-						//Gdx.app.log (TAG, "Change Password dialog: chosen = " + object);
-						//Gdx.app.log (TAG, "Change Password dialog: new password = " + firstTextField.getText());
-						if (object.equals ("ok"))
-							//ChangeAppPassword();
-                        Gdx.input.setOnscreenKeyboardVisible (false);
-						}
-					};
-				editDialog.getContentTable().add (table);
-				editDialog.button ("OK", "ok");
-				editDialog.button ("Cancel", "cancel");
-                editDialog.scaleBy (.4f);
-                editDialog.show (stage).setX (15f);
-				stage.setKeyboardFocus (firstTextField);
-				}
-			});
-		button2.setPosition (80, 0);
-		stage.addActor (button2);
 
-		// create the "Logout" button
-		final TextButton button3 = new TextButton ("Logout", skin, "default");
-		button3.setWidth (65);
-		button3.setHeight (40);
-		button3.addListener (new ClickListener() {
-            @Override
-			public void clicked (InputEvent event, float x, float y) {
-				//Gdx.app.log (TAG, "Logout button clicked");
-                //LogoutUser();
-				}
-			});
-		button3.setPosition (170, 0);
-		stage.addActor (button3);
-
-		// create the "Restore Accounts" button
-		final TextButton button4 = new TextButton ("Restore\nAccounts", skin, "default");
-		button4.setWidth (80);
+		// create the "Restore Game" button
+		final TextButton button4 = new TextButton ("Load\nGame", skin, "default");
+		button4.setWidth (75);
 		button4.setHeight (40);
 		button4.addListener (new ClickListener() {
             @Override
 			public void clicked (InputEvent event, float x, float y) {
-				//Gdx.app.log (TAG, "Restore Accounts button clicked");
                 // try to get external access if it hasn't already been granted
                 systemAccess.RequestExternalAccess();
                 firstTextField = new TextField ("", skin);
 				Table table = new Table (skin);
-				table.add ("File Path ").align (Align.right);
+				table.add ("File Pathname ").align (Align.right);
 				table.add (firstTextField);
-                table.row();
-                Label warning = new Label("WARNING: password will be set\n\rto what is in the restore file", skin);
-                warning.setColor (Color.RED);
-                table.add (warning).colspan (2);
-				Dialog editDialog = new Dialog ("Restore Accounts", skin) {
+				Dialog editDialog = new Dialog ("Load Game", skin) {
 					protected void result(Object object) {
-						//Gdx.app.log (TAG, "Restore Accounts dialog: chosen = " + object);
-						//Gdx.app.log (TAG, "Restore Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals ("ok"))
-							//RestoreAccounts();
+							loadGame();
                         Gdx.input.setOnscreenKeyboardVisible (false);
 						}
 					};
 				editDialog.getContentTable().add (table);
 				editDialog.button ("OK", "ok");
 				editDialog.button ("Cancel", "cancel");
-                editDialog.scaleBy (.5f);
-                editDialog.show (stage).setX (20f);
+                editDialog.scaleBy (.2f);
+                editDialog.show (stage).setX (25f);
 				stage.setKeyboardFocus (firstTextField);
 				}
 			});
-		button4.setPosition (240, 0);
+		button4.setPosition (84, 40);
 		stage.addActor (button4);
 
-		// create the "Archive Accounts" button
-		final TextButton button5 = new TextButton ("Archive\nAccounts", skin, "default");
-		button5.setWidth (80);
+		// create the "Save GAme" button
+		final TextButton button5 = new TextButton ("Save\nGame", skin, "default");
+		button5.setWidth (75);
 		button5.setHeight (40);
 		button5.addListener (new ClickListener() {
             @Override
 			public void clicked (InputEvent event, float x, float y) {
-				//Gdx.app.log (TAG, "Archive button clicked");
                 // try to get external access if it hasn't already been granted
                 systemAccess.RequestExternalAccess();
 				firstTextField = new TextField ("", skin);
 				Table table = new Table (skin);
-				table.add ("File Path ").align (Align.right);
+				table.add ("File Pathname ").align (Align.right);
 				table.add (firstTextField);
-				Dialog editDialog = new Dialog ("Archive Accounts", skin) {
+				Dialog editDialog = new Dialog ("Save Game", skin) {
 					protected void result (Object object) {
-						//Gdx.app.log (TAG, "Archive Accounts dialog: chosen = " + object);
-						//Gdx.app.log (TAG, "Archive Accounts dialog: file path = " + firstTextField.getText());
 						if (object.equals ("ok"))
-							//ArchiveAccounts();
+							saveGame();
                         Gdx.input.setOnscreenKeyboardVisible (false);
 						}
 					};
 				editDialog.getContentTable().add (table);
 				editDialog.button ("OK", "ok");
 				editDialog.button ("Cancel", "cancel");
-                editDialog.scaleBy (.5f);
-                editDialog.show (stage).setX (20f);
+                editDialog.scaleBy (.2f);
+                editDialog.show (stage).setX (25f);
 				stage.setKeyboardFocus (firstTextField);
 				}
 			});
-		button5.setPosition (322, 0);
+		button5.setPosition (4,40);
 		stage.addActor (button5);
-        */
 
 		appState = AppStates.INITIALIZED;
         Gdx.input.setInputProcessor (inputMultiplexer);
 		}
+
+
+    private void saveGame() {
+        //Gdx.app.log (TAG, "saveGame: file path = " + firstTextField.getText());
+        try {
+            FileHandle file = Gdx.files.external(firstTextField.getText());
+            for (int i = 0; i < 9; i++)
+                for (int j = 0; j < 9; j++)
+                    file.writeString(Integer.toString(board[i][j].getValue()) + ", ", true);
+            }
+        catch (Exception e) {
+            Gdx.app.log (TAG, "saveGame: Error cause - " + e.getCause().getLocalizedMessage());
+            DisplayError ("saveGame", e.getCause().getLocalizedMessage());
+            }
+        }
+
+
+    private void loadGame() {
+        String s = "";
+        //Gdx.app.log (TAG, "loadGame: file path = " + firstTextField.getText());
+        try {
+            FileHandle file = Gdx.files.external(firstTextField.getText());
+            s = file.readString();
+            }
+        catch (Exception e) {
+            Gdx.app.log (TAG, "loadGame: Error cause - " + e.getCause().getLocalizedMessage());
+            DisplayError ("loadGame", e.getCause().getLocalizedMessage());
+            }
+        System.out.printf("loadGame: s=%s\n", s);
+        String delimiter = "[,]";
+        String[] cellValues = s.split(delimiter);
+        for (int i = 0; i < 9; i++)
+            for (int j = 0; j < 9; j++)
+                //board[i][j].setValue(Integer.parseInt(cellValues[i*9+j]));
+                board[i][j].setValue(Integer.valueOf(cellValues[i*9+j].trim()));
+        }
 
 
     private void DisplayInformationDialog (String title, String text) {

@@ -1,12 +1,12 @@
 android {
-    signingConfigs {
-        release {
-            keyAlias 'MyAndroidKey'
-            keyPassword 'MyKey66'
-            storeFile file('C:/Users/wcb/keystores/android.jks')
-            storePassword 'KeyStore69'
-        }
-    }
+    //signingConfigs {
+    //    release {
+    //        keyAlias 'MyAndroidKey'
+    //        keyPassword 'MyKey66'
+    //        storeFile file('C:/Users/wcb/keystores/android.jks')
+    //        storePassword 'KeyStore69'
+    //    }
+    //}
     buildToolsVersion '28.0.3'
     compileSdkVersion 28
     sourceSets {
@@ -25,7 +25,7 @@ android {
         exclude 'META-INF/robovm/ios/robovm.xml'
     }
     defaultConfig {
-        applicationId "com.bswe"
+        applicationId "com.bswe.sudoku"
         minSdkVersion 20
         targetSdkVersion 28
         versionCode 6
@@ -36,7 +36,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            //signingConfig signingConfigs.release
         }
     }
     productFlavors {
