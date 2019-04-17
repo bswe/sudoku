@@ -175,13 +175,11 @@ class cell {
             locked = false;
             label.setStyle(defaultStyle);
             }
-        if ((locked) || (value == newValue))
+        if (locked)
             return;
-        if (value != 0) {
-            row.removeElement(Math.abs(value));
-            column.removeElement(Math.abs(value));
-            block.removeElement(Math.abs(value));
-            }
+        row.removeElement(Math.abs(value));
+        column.removeElement(Math.abs(value));
+        block.removeElement(Math.abs(value));
         value = newValue;
         if (value != 0) {
             row.add(Math.abs(value));
@@ -190,9 +188,9 @@ class cell {
             }
         if (value > 0)
             label.setText(Integer.toString(value));
-        else {    // display nothing for 0 (empty cell) or negative numbers (hidden answer)
-            label.setText("");
-            originalValue = value;   // only for 0 (empty cell) or negative values (hidden puzzle answer values)
+        else {    // display nothing for negative numbers (hidden answer)
+            label.setText("");       // show nothing for empty cells and hidden puzzle answer values
+            originalValue = value;   // 0 or puzzle answer values (for eraser method)
             }
         //System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
         }
@@ -551,12 +549,14 @@ public class sudoku extends ApplicationAdapter {
                     board[i][j].setStyle(clue);
                     numberOfEmptyCells--;
                     }
+        /*
         for (int i = 0; i < 9; i++)
             System.out.printf("row[%d]=%s\n", i, values.rows[i].toString());
         for (int i = 0; i < 9; i++)
             System.out.printf("column[%d]=%s\n", i, values.columns[i].toString());
         for (int i = 0; i < 9; i++)
             System.out.printf("block[%d]=%s\n", i, values.blocks[i].toString());
+        */
 
         // TODO: add code to try to find puzzle solution
         boolean foundOne = true;
@@ -572,18 +572,51 @@ public class sudoku extends ApplicationAdapter {
                             block = cells.blocks[c.containingBlock];
                             known = true;
                             for (int k = 0; k < 9; k++) {
-                                cell otherBlockCell = ((cell) block.get(k));
-                                if (otherBlockCell == c) continue;  // skip cell that's under investigation
-                                if (otherBlockCell.canSetValue(n)) {
+                                cell otherCell = ((cell) block.get(k));
+                                if (otherCell == c) continue;  // skip cell that's under investigation
+                                if (otherCell.canSetValue(n)) {
                                     known = false;
                                     break;
-                                    }
                                 }
-                            if (! known) continue;
-                            foundOne = true;
-                            c.setValue(-1*n);
-                            System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
-                            break;
+                            }
+                            if (known) {
+                                foundOne = true;
+                                c.setValue(-1 * n);
+                                //System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
+                                break;
+                                }
+                            row = cells.rows[i];
+                            known = true;
+                            for (int k = 0; k < 9; k++) {
+                                cell otherCell = ((cell) row.get(k));
+                                if (otherCell == c) continue;  // skip cell that's under investigation
+                                if (otherCell.canSetValue(n)) {
+                                    known = false;
+                                    break;
+                                }
+                            }
+                            if (known) {
+                                foundOne = true;
+                                c.setValue(-1 * n);
+                                //System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
+                                break;
+                            }
+                            column = cells.columns[j];
+                            known = true;
+                            for (int k = 0; k < 9; k++) {
+                                cell otherCell = ((cell) column.get(k));
+                                if (otherCell == c) continue;  // skip cell that's under investigation
+                                if (otherCell.canSetValue(n)) {
+                                    known = false;
+                                    break;
+                                }
+                            }
+                            if (known) {
+                                foundOne = true;
+                                c.setValue(-1 * n);
+                                //System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
+                                break;
+                                }
                             }
                         }
             }
@@ -727,6 +760,7 @@ public class sudoku extends ApplicationAdapter {
                 cells.rows[i].add(c);
                 //l.setText(c.getName());
                 l.setAlignment(Align.center);
+                l.setFontScale(1.5f);
                 table.add(l).height(c.getSize()).width(c.getSize());
                 final cell fc = c;
                 l.addListener(new ClickListener() {
