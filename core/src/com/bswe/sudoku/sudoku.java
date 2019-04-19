@@ -154,7 +154,8 @@ class cell {
     Label label;
     LabelStyle defaultStyle;
     int originalValue;
-    boolean locked;
+    boolean locked = false;
+    boolean reserved = false;
 
     cell(int rowIndex, int columnIndex, int containingBlock, Vector row, Vector column, Vector block, Label l) {
         this.rowIndex = rowIndex;
@@ -174,11 +175,12 @@ class cell {
         if (newValue == 0) {
             // if new value is 0 (effective reset) unlock cell
             locked = false;
+            reserved = false;
             label.setStyle(defaultStyle);
-            possibleValues.removeAllElements();
             }
         if (locked)
             return;
+        possibleValues.removeAllElements();
         row.removeElement(Math.abs(value));
         column.removeElement(Math.abs(value));
         block.removeElement(Math.abs(value));
@@ -217,11 +219,19 @@ class cell {
 
     public void lock() {
         locked = true;
-        }
+    }
 
     public boolean isLocked() {
         return locked;
-        }
+    }
+
+    public void reserve() {
+        reserved = true;
+    }
+
+    public boolean isReserved() {
+        return reserved;
+    }
 
     public void setStyle(LabelStyle style) { label.setStyle(style); }
 
@@ -555,11 +565,50 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
+    private void checkForReservedValues(cell c) {
+        if ((c.isReserved()) || (c.possibleValues.size() != 2)) return;
+        Vector block = cells.blocks[c.containingBlock];
+        for (int i = 0; i < 9; i++) {
+            cell secondCell = ((cell) block.get(i));
+            if (secondCell == c) continue;           // skip cell that's under investigation
+            if (c.possibleValues.equals(secondCell.possibleValues)) {
+                c.reserve();
+                secondCell.reserve();
+                if (c.rowIndex == secondCell.rowIndex) {
+                    Vector v = cells.rows[c.rowIndex - 1];
+                    for (int j = 0; j < 9; j++) {
+                        cell otherCell = ((cell) v.get(j));
+                        if ((c == otherCell) || (secondCell == otherCell))
+                            continue;  // skip known cells
+                        //System.out.printf("c=%s, sc=%s, oc=%s\n", c.getName(), secondCell.getName(), otherCell.getName());
+                        //System.out.printf("c.pv=%s\n", c.possibleValues);
+                        //System.out.printf("oc.pv=%s\n", otherCell.possibleValues);
+                        otherCell.possibleValues.removeElement(c.possibleValues.get(0));
+                        otherCell.possibleValues.removeElement(c.possibleValues.get(1));
+                        //System.out.printf("oc.pv=%s\n", otherCell.possibleValues);
+                    }
+                } else if (c.columnIndex == secondCell.columnIndex) {
+                    Vector v = cells.columns[c.columnIndex - 1];
+                    for (int j = 0; j < 9; j++) {
+                        cell otherCell = ((cell) v.get(j));
+                        if ((c == otherCell) || (secondCell == otherCell))
+                            continue;  // skip known cells
+                        //System.out.printf("c=%s, sc=%s, oc=%s\n", c.getName(), secondCell.getName(), otherCell.getName());
+                        //System.out.printf("c.pv=%s\n", c.possibleValues);
+                        //System.out.printf("oc.pv=%s\n", otherCell.possibleValues);
+                        otherCell.possibleValues.removeElement(c.possibleValues.get(0));
+                        otherCell.possibleValues.removeElement(c.possibleValues.get(1));
+                        //System.out.printf("oc.pv=%s\n", otherCell.possibleValues);
+                        }
+                    }
+                }
+            }
+        }
+
+
     private void analyzePuzzle() {
         int numberOfEmptyCells = 81;
-        Vector vector;
         cell c;
-        boolean known;
 
         mode = GameModes.ANALYZE_PUZZLE;
         /*
@@ -596,6 +645,8 @@ public class sudoku extends ApplicationAdapter {
         boolean foundOne = true;
         while ((numberOfEmptyCells > 0) && (foundOne)) {
             foundOne = false;
+            // TODO: add code to find 2 cells with the same 2 'possibleValues' that are in a block
+            // and either a row or column
             // check all cells for ones that still need to be set
             for (int i = 0; i < 9; i++)
                 for (int j = 0; j < 9; j++)
@@ -607,7 +658,7 @@ public class sudoku extends ApplicationAdapter {
                             removeFromPossibleValues(c, v);
                             //System.out.printf("size=1: set cell %d,%d to %d\n", i, j, c.getValue());
                             foundOne = true;
-                            continue;
+                            continue;       // to next cell
                             }
                         for (int v = 0; v < c.possibleValues.size(); v++) {  // iterate thru all possible values
                             int value = c.possibleValues.get(v);
@@ -634,6 +685,7 @@ public class sudoku extends ApplicationAdapter {
                                 break;
                                 }
                             }
+                        checkForReservedValues(c);
                         }
             }
         float elapsedTime = System.nanoTime() - startTime;
@@ -965,6 +1017,7 @@ public class sudoku extends ApplicationAdapter {
 
 
     private void saveGame() {
+        // TODO: add code to prompt to over-write existing file
         //Gdx.app.log (TAG, "saveGame: file path = " + firstTextField.getText());
         try {
             FileHandle file = Gdx.files.external(firstTextField.getText());
