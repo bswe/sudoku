@@ -544,9 +544,20 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
+    private boolean isUniqueInVector(Vector v, cell c, int value)   {
+        for (int k = 0; k < 9; k++) {
+            cell otherCell = ((cell) v.get(k));
+            if (otherCell == c) continue;  // skip cell that's under investigation
+            if (otherCell.canSetValue(value))
+                return false;
+            }
+        return true;
+        }
+
+
     private void analyzePuzzle() {
         int numberOfEmptyCells = 81;
-        Vector row, column, block;
+        Vector vector;
         cell c;
         boolean known;
 
@@ -601,51 +612,21 @@ public class sudoku extends ApplicationAdapter {
                         for (int v = 0; v < c.possibleValues.size(); v++) {  // iterate thru all possible values
                             int value = c.possibleValues.get(v);
                             // search cell's block for any other cells that work for this number
-                            block = cells.blocks[c.containingBlock];
-                            known = true;
-                            for (int k = 0; k < 9; k++) {
-                                cell otherCell = ((cell) block.get(k));
-                                if (otherCell == c) continue;  // skip cell that's under investigation
-                                if (otherCell.canSetValue(value)) {
-                                    known = false;
-                                    break;
-                                    }
-                                }
-                            if (known) {
+                            if (isUniqueInVector(cells.blocks[c.containingBlock], c, value)) {
                                 c.setValue(-1 * value);
                                 removeFromPossibleValues(c, value);
                                 //System.out.printf("block known: set cell %d,%d to %d\n", i, j, c.getValue());
                                 foundOne = true;
                                 break;
                                 }
-                            row = cells.rows[i];
-                            known = true;
-                            for (int k = 0; k < 9; k++) {
-                                cell otherCell = ((cell) row.get(k));
-                                if (otherCell == c) continue;  // skip cell that's under investigation
-                                if (otherCell.canSetValue(value)) {
-                                    known = false;
-                                    break;
-                                    }
-                                }
-                            if (known) {
-                                c.setValue(-1 * value);
+                            if (isUniqueInVector(cells.rows[i], c, value)) {
+                              c.setValue(-1 * value);
                                 removeFromPossibleValues(c, value);
                                 //System.out.printf("row known: set cell %d,%d to %d\n", i, j, c.getValue());
                                 foundOne = true;
                                 break;
                                 }
-                            column = cells.columns[j];
-                            known = true;
-                            for (int k = 0; k < 9; k++) {
-                                cell otherCell = ((cell) column.get(k));
-                                if (otherCell == c) continue;  // skip cell that's under investigation
-                                if (otherCell.canSetValue(value)) {
-                                    known = false;
-                                    break;
-                                    }
-                                }
-                            if (known) {
+                            if (isUniqueInVector(cells.columns[j], c, value)) {
                                 c.setValue(-1 * value);
                                 removeFromPossibleValues(c, value);
                                 //System.out.printf("column known: set cell %d,%d to %d\n", i, j, c.getValue());
@@ -1010,7 +991,7 @@ public class sudoku extends ApplicationAdapter {
             DisplayError ("loadGame", e.getCause().getLocalizedMessage());
             return;
             }
-        System.out.printf("loadGame: s=%s\n", s);
+        //System.out.printf("loadGame: s=%s\n", s);
         String delimiter = "[,]";
         String[] cellValues = s.split(delimiter);
         clearPuzzle();
