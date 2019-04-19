@@ -150,6 +150,7 @@ class cell {
     int rowIndex, columnIndex, containingBlock, size, value = -1;   // set to -1 so first call to setValue(0) runs
     String name;
     Vector row, column, block;
+    Vector<Integer> possibleValues = new Vector();
     Label label;
     LabelStyle defaultStyle;
     int originalValue;
@@ -174,6 +175,7 @@ class cell {
             // if new value is 0 (effective reset) unlock cell
             locked = false;
             label.setStyle(defaultStyle);
+            possibleValues.removeAllElements();
             }
         if (locked)
             return;
@@ -233,8 +235,7 @@ class cell {
         value = originalValue;
         label.setText("");
         }
-
-}
+    }
 
 class cellVectors {
     Vector[] rows, columns, blocks;
@@ -528,6 +529,21 @@ public class sudoku extends ApplicationAdapter {
     }
 
 
+    private void removeFromPossibleValues(cell c, int value) {
+        Vector v;
+        c.possibleValues.removeElement(value);
+        v = cells.rows[c.rowIndex-1];
+        for (int i=0; i < 9; i++)
+            ((cell)v.get(i)).possibleValues.removeElement(value);
+        v = cells.columns[c.columnIndex-1];
+        for (int i=0; i < 9; i++)
+            ((cell)v.get(i)).possibleValues.removeElement(value);
+        v = cells.blocks[c.containingBlock];
+        for (int i=0; i < 9; i++)
+            ((cell)v.get(i)).possibleValues.removeElement(value);
+        }
+
+
     private void analyzePuzzle() {
         int numberOfEmptyCells = 81;
         Vector row, column, block;
@@ -541,14 +557,21 @@ public class sudoku extends ApplicationAdapter {
         findPermutations(new Vector(), v);
         System.out.printf("# of row permutations = %d\n", rowPermutations.size());
         */
-        // lock all cells with values as they are the clues and can't be set by user
+        // lock all cells that have values as they are the clues and can't be set by user and
+        // initialize the possibleValues vectors for the other cells
         for (int i = 0; i < 9; i++)
-            for (int j = 0; j < 9; j++)
+            for (int j = 0; j < 9; j++) {
                 if (board[i][j].getValue() > 0) {
                     board[i][j].lock();
                     board[i][j].setStyle(clue);
                     numberOfEmptyCells--;
                     }
+                else
+                    for (int n = 1; n <= 9; n++)
+                        if (board[i][j].canSetValue(n))
+                            board[i][j].possibleValues.add(n);
+                //System.out.printf("cell[%d][%d].pv=%s\n", i, j, board[i][j].possibleValues);
+                }
         /*
         for (int i = 0; i < 9; i++)
             System.out.printf("row[%d]=%s\n", i, values.rows[i].toString());
@@ -558,31 +581,41 @@ public class sudoku extends ApplicationAdapter {
             System.out.printf("block[%d]=%s\n", i, values.blocks[i].toString());
         */
 
-        // TODO: add code to try to find puzzle solution
+        long startTime = System.nanoTime();
         boolean foundOne = true;
         while ((numberOfEmptyCells > 0) && (foundOne)) {
             foundOne = false;
+            // check all cells for ones that still need to be set
             for (int i = 0; i < 9; i++)
                 for (int j = 0; j < 9; j++)
-                    if (board[i][j].getValue() == 0) {  // empty cell, look for possible known value
+                    if (board[i][j].getValue() == 0) {  // empty cell, so look for possible 'known' value
                         c = board[i][j];
-                        for (int n = 1; n <= 9; n++) {  // iterate thru all numbers 1-9
-                            if (! c.canSetValue(n)) continue;  // skip cell if number doesn't fit
+                        if (c.possibleValues.size() == 1) {     // check if value is 'known'
+                            int v = (Integer)c.possibleValues.get(0);
+                            c.setValue(-1 * v);
+                            removeFromPossibleValues(c, v);
+                            //System.out.printf("size=1: set cell %d,%d to %d\n", i, j, c.getValue());
+                            foundOne = true;
+                            continue;
+                            }
+                        for (int v = 0; v < c.possibleValues.size(); v++) {  // iterate thru all possible values
+                            int value = c.possibleValues.get(v);
                             // search cell's block for any other cells that work for this number
                             block = cells.blocks[c.containingBlock];
                             known = true;
                             for (int k = 0; k < 9; k++) {
                                 cell otherCell = ((cell) block.get(k));
                                 if (otherCell == c) continue;  // skip cell that's under investigation
-                                if (otherCell.canSetValue(n)) {
+                                if (otherCell.canSetValue(value)) {
                                     known = false;
                                     break;
+                                    }
                                 }
-                            }
                             if (known) {
+                                c.setValue(-1 * value);
+                                removeFromPossibleValues(c, value);
+                                //System.out.printf("block known: set cell %d,%d to %d\n", i, j, c.getValue());
                                 foundOne = true;
-                                c.setValue(-1 * n);
-                                //System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
                                 break;
                                 }
                             row = cells.rows[i];
@@ -590,36 +623,40 @@ public class sudoku extends ApplicationAdapter {
                             for (int k = 0; k < 9; k++) {
                                 cell otherCell = ((cell) row.get(k));
                                 if (otherCell == c) continue;  // skip cell that's under investigation
-                                if (otherCell.canSetValue(n)) {
+                                if (otherCell.canSetValue(value)) {
                                     known = false;
                                     break;
+                                    }
                                 }
-                            }
                             if (known) {
+                                c.setValue(-1 * value);
+                                removeFromPossibleValues(c, value);
+                                //System.out.printf("row known: set cell %d,%d to %d\n", i, j, c.getValue());
                                 foundOne = true;
-                                c.setValue(-1 * n);
-                                //System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
                                 break;
-                            }
+                                }
                             column = cells.columns[j];
                             known = true;
                             for (int k = 0; k < 9; k++) {
                                 cell otherCell = ((cell) column.get(k));
                                 if (otherCell == c) continue;  // skip cell that's under investigation
-                                if (otherCell.canSetValue(n)) {
+                                if (otherCell.canSetValue(value)) {
                                     known = false;
                                     break;
+                                    }
                                 }
-                            }
                             if (known) {
+                                c.setValue(-1 * value);
+                                removeFromPossibleValues(c, value);
+                                //System.out.printf("column known: set cell %d,%d to %d\n", i, j, c.getValue());
                                 foundOne = true;
-                                c.setValue(-1 * n);
-                                //System.out.printf("set cell %d,%d to %d\n", i, j, c.getValue());
                                 break;
                                 }
                             }
                         }
             }
+        float elapsedTime = System.nanoTime() - startTime;
+        System.out.printf("analysis took %f nano seconds (%f seconds)\n", elapsedTime, elapsedTime / 1000000000f);
         showHidenValues();
         }
 
@@ -976,6 +1013,7 @@ public class sudoku extends ApplicationAdapter {
         System.out.printf("loadGame: s=%s\n", s);
         String delimiter = "[,]";
         String[] cellValues = s.split(delimiter);
+        clearPuzzle();
         for (int i = 0; i < 9; i++)
             for (int j = 0; j < 9; j++)
                 //board[i][j].setValue(Integer.parseInt(cellValues[i*9+j]));
