@@ -156,6 +156,7 @@ class cell {
     int originalValue;
     boolean locked = false;
     boolean reserved = false;
+    boolean debugMode = false;
 
     cell(int rowIndex, int columnIndex, int containingBlock, Vector row, Vector column, Vector block, Label l) {
         this.rowIndex = rowIndex;
@@ -168,6 +169,7 @@ class cell {
         name = Integer.toString(rowIndex) + "," + Integer.toString(columnIndex);
         label = l;
         defaultStyle = l.getStyle();
+        l.setWrap(true);
         setValue(0);
         }
 
@@ -177,7 +179,9 @@ class cell {
             locked = false;
             reserved = false;
             label.setStyle(defaultStyle);
-            }
+            label.setFontScale(1f);
+            debugMode = false;
+        }
         if (locked)
             return;
         possibleValues.removeAllElements();
@@ -186,15 +190,21 @@ class cell {
         block.removeElement(Math.abs(value));
         value = newValue;
         if (value != 0) {
+            label.setFontScale(1.5f);
             row.add(Math.abs(value));
             column.add(Math.abs(value));
             block.add(Math.abs(value));
             }
         if (value > 0)
             label.setText(Integer.toString(value));
-        else {    // display nothing for negative numbers (hidden answer)
-            label.setText("");       // show nothing for empty cells and hidden puzzle answer values
+        else {
             originalValue = value;   // 0 or puzzle answer values (for eraser method)
+            if (debugMode) {    // show value for debug mode
+                if (value < 0)
+                    label.setText(Integer.toString(value));
+                }
+            else
+                label.setText("");   // normally show nothing for empty cells and hidden puzzle answer values
             }
         //System.out.printf("row=%s\ncolumn=%s\nblock=%s\n", row.toString(), column.toString(), block.toString());
         }
@@ -219,25 +229,45 @@ class cell {
 
     public void lock() {
         locked = true;
-    }
+        }
 
     public boolean isLocked() {
         return locked;
-    }
+        }
 
     public void reserve() {
         reserved = true;
-    }
+        }
 
     public boolean isReserved() {
         return reserved;
-    }
+        }
 
     public void setStyle(LabelStyle style) { label.setStyle(style); }
+
+    public void setDebugMode(boolean mode) { debugMode = mode; }
 
     public void unsetStyle() {
         label.setStyle(defaultStyle);
         }
+
+    public void addPossibleValue(int value) {
+        possibleValues.addElement(value);
+        if (! debugMode) return;
+        String s = new String();
+        for (int i=0; i < possibleValues.size(); i++)
+            s += Integer.toString(possibleValues.get(i)) + " ";
+        label.setText(s);
+        }
+
+    public void removePossibleValue(int value) {
+        possibleValues.removeElement(value);
+        if ((! debugMode) || (possibleValues.size() == 0)) return;
+        String s = new String();
+        for (int i=0; i < possibleValues.size(); i++)
+            s += Integer.toString(possibleValues.get(i)) + " ";
+        label.setText(s);
+    }
 
     public void eraseValue() {
         if (locked)
@@ -352,6 +382,15 @@ public class sudoku extends ApplicationAdapter {
                             EDIT_PUZZLE};
 
     private GameModes mode = GameModes.EDIT_PUZZLE;
+
+    private boolean debugMode = false;
+
+    private boolean singleStep = false;
+
+    // these variables are global to enable debug mode single stepping
+    private int numberOfEmptyCells;
+    private boolean foundOne;
+    private int row, column;
 
 
     public sudoku (SystemAccess sa) {
@@ -541,27 +580,26 @@ public class sudoku extends ApplicationAdapter {
 
     private void removeFromPossibleValues(cell c, int value) {
         Vector v;
-        c.possibleValues.removeElement(value);
+        c.removePossibleValue(value);
         v = cells.rows[c.rowIndex-1];
         for (int i=0; i < 9; i++)
-            ((cell)v.get(i)).possibleValues.removeElement(value);
+            ((cell)v.get(i)).removePossibleValue(value);
         v = cells.columns[c.columnIndex-1];
         for (int i=0; i < 9; i++)
-            ((cell)v.get(i)).possibleValues.removeElement(value);
+            ((cell)v.get(i)).removePossibleValue(value);
         v = cells.blocks[c.containingBlock];
         for (int i=0; i < 9; i++)
-            ((cell)v.get(i)).possibleValues.removeElement(value);
+            ((cell)v.get(i)).removePossibleValue(value);
         }
 
 
-    private boolean isUniqueInVector(Vector v, cell c, int value)   {
-        for (int k = 0; k < 9; k++) {
-            cell otherCell = ((cell) v.get(k));
-            if (otherCell == c) continue;  // skip cell that's under investigation
-            if (otherCell.canSetValue(value))
-                return false;
-            }
-        return true;
+    private void removeFromPossibleValues(Vector<cell> v, Vector<cell> c, int value) {
+
+        for (int i=0; i < v.size(); i++)
+            if (! c.contains(v.get(i))) {
+                //System.out.printf("removing %d from %s\n", value, v.get(i).getName());
+                v.get(i).removePossibleValue(value);
+                }
         }
 
 
@@ -606,21 +644,157 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
-    private void analyzePuzzle() {
-        int numberOfEmptyCells = 81;
-        cell c;
+    private Vector<cell> findCellsWithSamePossibleValue(Vector<cell> v, cell c, int value) {
+        Vector<cell> cells = new Vector<cell>();
+        for (int k = 0; k < 9; k++) {
+            cell otherCell = v.get(k);
+            if (otherCell == c) continue;  // skip the original cell that's under investigation
+            if (otherCell.possibleValues.contains(value))
+                cells.add(otherCell);
+            if (cells.size() > 2)
+                break;
+            }
+        return cells;
+        }
 
+
+    private void checkForTwoVectorCondition(Vector<cell> v, int value, boolean vectorIsBlock) {
+        boolean conditionFound;
+
+        if (vectorIsBlock) {
+            // check for all cells belonging to the same row
+            conditionFound = true;
+            for (int i=0; i < v.size()-1; i++)
+                if (v.get(i).row != v.get(i+1).row) {
+                    conditionFound = false;
+                    break;
+                    }
+            if (conditionFound)  {
+                // remove the value from all the other cells in the row
+                removeFromPossibleValues(cells.rows[v.get(0).rowIndex-1], v, value);
+                return;
+                }
+            // check for all cells belonging to the same column
+            conditionFound = true;
+            for (int i=0; i < v.size()-1; i++)
+                if (v.get(i).column != v.get(i+1).column) {
+                    conditionFound = false;
+                    break;
+                    }
+            if (conditionFound)  {
+                // remove the value from all the other cells in the column
+                removeFromPossibleValues(cells.columns[v.get(0).columnIndex-1], v, value);
+                return;
+                }
+            }
+        else {
+            // check for all cells belonging to the same block
+            conditionFound = true;
+            for (int i=0; i < v.size()-1; i++)
+                if (v.get(i).containingBlock != v.get(i+1).containingBlock) {
+                    conditionFound = false;
+                    break;
+                    }
+            if (conditionFound)  {
+                // remove the value from all the other cells in the block
+                removeFromPossibleValues(cells.blocks[v.get(0).containingBlock], v, value);
+                }
+            }
+        }
+
+
+    private void lookForNextValue() {
+        cell c;
+        Vector<cell> otherCells;
+        int loopCount = 0;
+
+        // look for next cell that still needs to be set and quit if one is found
+        foundOne = false;
+        while (loopCount++ <= 81) {    // check all cells only once per call
+            if (++column == 9) {
+                if (++row == 9)
+                    row = 0;
+                column = 0;
+                }
+            if (board[row][column].getValue() == 0) {  // cell is empty, so look for possible 'known' value
+                c = board[row][column];
+                if (c.possibleValues.size() == 1) {     // check to see if value is 'known'
+                    int v = (Integer) c.possibleValues.get(0);
+                    c.setValue(-1 * v);
+                    removeFromPossibleValues(c, v);
+                    //System.out.printf("size=1: set cell %d,%d to %d\n", i, j, c.getValue());
+                    foundOne = true;
+                    return;
+                }
+                for (int v = 0; v < c.possibleValues.size(); v++) {   // iterating thru all possible values for cell
+                    int value = c.possibleValues.get(v);
+                    // search cell's block for any other cells that work for this number
+                    otherCells = findCellsWithSamePossibleValue(cells.blocks[c.containingBlock], c, value);
+                    if (otherCells.size() == 0) {
+                        // this is the only cell in vector that can be set to this value
+                        c.setValue(-1 * value);
+                        removeFromPossibleValues(c, value);
+                        //System.out.printf("block known: set cell %d,%d to %d\n", i, j, c.getValue());
+                        foundOne = true;
+                        return;
+                        }
+                    if (otherCells.size() < 3) {
+                        // check for '2-vector' condition
+                        otherCells.add(c);
+                        checkForTwoVectorCondition(otherCells, value, true);
+                        }
+                    // search cell's row for any other cells that work for this number
+                    otherCells = findCellsWithSamePossibleValue(cells.rows[c.rowIndex - 1], c, value);
+                    if (otherCells.size() == 0) {
+                        // this is the only cell in vector that can be set to this value
+                        c.setValue(-1 * value);
+                        removeFromPossibleValues(c, value);
+                        //System.out.printf("block known: set cell %d,%d to %d\n", i, j, c.getValue());
+                        foundOne = true;
+                        return;
+                        }
+                    if (otherCells.size() < 3) {
+                        // check for '2-vector' condition
+                        otherCells.add(c);
+                        checkForTwoVectorCondition(otherCells, value, false);
+                        }
+                    // search cell's column for any other cells that work for this number
+                    otherCells = findCellsWithSamePossibleValue(cells.columns[c.columnIndex - 1], c, value);
+                    if (otherCells.size() == 0) {
+                        // this is the only cell in vector that can be set to this value
+                        c.setValue(-1 * value);
+                        removeFromPossibleValues(c, value);
+                        //System.out.printf("block known: set cell %d,%d to %d\n", i, j, c.getValue());
+                        foundOne = true;
+                        return;
+                        }
+                    if (otherCells.size() < 3) {
+                        // check for '2-vector' condition
+                        otherCells.add(c);
+                        checkForTwoVectorCondition(otherCells, value, false);
+                        }
+                    }
+                //checkForReservedValues(c);
+                }
+            }
+        }
+
+
+    private void analyzePuzzle() {
         mode = GameModes.ANALYZE_PUZZLE;
         /*
+        // code to generate all permutations of a vector
         Vector v = new Vector(numbers);
         rowPermutations.removeAllElements();
         findPermutations(new Vector(), v);
         System.out.printf("# of row permutations = %d\n", rowPermutations.size());
         */
+
         // lock all cells that have values as they are the clues and can't be set by user and
         // initialize the possibleValues vectors for the other cells
         for (int i = 0; i < 9; i++)
             for (int j = 0; j < 9; j++) {
+                board[i][j].setDebugMode(debugMode);
                 if (board[i][j].getValue() > 0) {
                     board[i][j].lock();
                     board[i][j].setStyle(clue);
@@ -629,10 +803,11 @@ public class sudoku extends ApplicationAdapter {
                 else
                     for (int n = 1; n <= 9; n++)
                         if (board[i][j].canSetValue(n))
-                            board[i][j].possibleValues.add(n);
+                            board[i][j].addPossibleValue(n);
                 //System.out.printf("cell[%d][%d].pv=%s\n", i, j, board[i][j].possibleValues);
                 }
         /*
+        // code to display all vectors
         for (int i = 0; i < 9; i++)
             System.out.printf("row[%d]=%s\n", i, values.rows[i].toString());
         for (int i = 0; i < 9; i++)
@@ -641,56 +816,18 @@ public class sudoku extends ApplicationAdapter {
             System.out.printf("block[%d]=%s\n", i, values.blocks[i].toString());
         */
 
+        numberOfEmptyCells = 81;
+        foundOne = true;
+        row = 0;
+        column = 0;
         long startTime = System.nanoTime();
-        boolean foundOne = true;
-        while ((numberOfEmptyCells > 0) && (foundOne)) {
-            foundOne = false;
-            // TODO: add code to find 2 cells with the same 2 'possibleValues' that are in a block
-            // and either a row or column
-            // check all cells for ones that still need to be set
-            for (int i = 0; i < 9; i++)
-                for (int j = 0; j < 9; j++)
-                    if (board[i][j].getValue() == 0) {  // empty cell, so look for possible 'known' value
-                        c = board[i][j];
-                        if (c.possibleValues.size() == 1) {     // check if value is 'known'
-                            int v = (Integer)c.possibleValues.get(0);
-                            c.setValue(-1 * v);
-                            removeFromPossibleValues(c, v);
-                            //System.out.printf("size=1: set cell %d,%d to %d\n", i, j, c.getValue());
-                            foundOne = true;
-                            continue;       // to next cell
-                            }
-                        for (int v = 0; v < c.possibleValues.size(); v++) {  // iterate thru all possible values
-                            int value = c.possibleValues.get(v);
-                            // search cell's block for any other cells that work for this number
-                            if (isUniqueInVector(cells.blocks[c.containingBlock], c, value)) {
-                                c.setValue(-1 * value);
-                                removeFromPossibleValues(c, value);
-                                //System.out.printf("block known: set cell %d,%d to %d\n", i, j, c.getValue());
-                                foundOne = true;
-                                break;
-                                }
-                            if (isUniqueInVector(cells.rows[i], c, value)) {
-                              c.setValue(-1 * value);
-                                removeFromPossibleValues(c, value);
-                                //System.out.printf("row known: set cell %d,%d to %d\n", i, j, c.getValue());
-                                foundOne = true;
-                                break;
-                                }
-                            if (isUniqueInVector(cells.columns[j], c, value)) {
-                                c.setValue(-1 * value);
-                                removeFromPossibleValues(c, value);
-                                //System.out.printf("column known: set cell %d,%d to %d\n", i, j, c.getValue());
-                                foundOne = true;
-                                break;
-                                }
-                            }
-                        checkForReservedValues(c);
-                        }
-            }
+        if (debugMode) return;
+        while ((numberOfEmptyCells > 0) && (foundOne))
+            lookForNextValue();
         float elapsedTime = System.nanoTime() - startTime;
         System.out.printf("analysis took %f nano seconds (%f seconds)\n", elapsedTime, elapsedTime / 1000000000f);
-        showHidenValues();
+        if (! debugMode)
+            showHidenValues();
         }
 
 
@@ -775,6 +912,19 @@ public class sudoku extends ApplicationAdapter {
         }
 
 
+    private void setDebugMode(TextButton b, boolean doubleClicked) {
+        if (doubleClicked) {
+            debugMode = !debugMode;
+            if (debugMode)
+                b.setColor(.8f, .8f, .4f, 1);
+            else
+                b.setColor(1, 1, 1, 1);
+            }
+        else
+            lookForNextValue();
+        }
+
+
     private void DisplayError (String accessType, String cause) {
         cause = cause.replace (')', ' ');
         String delimiters = "\\(";
@@ -830,7 +980,6 @@ public class sudoku extends ApplicationAdapter {
                 cells.rows[i].add(c);
                 //l.setText(c.getName());
                 l.setAlignment(Align.center);
-                l.setFontScale(1.5f);
                 table.add(l).height(c.getSize()).width(c.getSize());
                 final cell fc = c;
                 l.addListener(new ClickListener() {
@@ -858,7 +1007,6 @@ public class sudoku extends ApplicationAdapter {
                     numberClicked(button, N, true);
                 else
                     numberClicked(button, N, false);
-
                 }
             });
         return button;
@@ -949,42 +1097,11 @@ public class sudoku extends ApplicationAdapter {
         stage.addActor (button);
 
 
-		// create the "Load Game" button
-		final TextButton button4 = new TextButton ("Load\nGame", skin, "default");
-		button4.setWidth (75);
-		button4.setHeight (40);
-		button4.addListener (new ClickListener() {
-            @Override
-			public void clicked (InputEvent event, float x, float y) {
-                // try to get external access if it hasn't already been granted
-                systemAccess.RequestExternalAccess();
-                firstTextField = new TextField ("", skin);
-				Table table = new Table (skin);
-				table.add ("File Pathname ").align (Align.right);
-				table.add (firstTextField);
-				Dialog editDialog = new Dialog ("Load Game", skin) {
-					protected void result(Object object) {
-						if (object.equals ("ok"))
-							loadGame();
-                        Gdx.input.setOnscreenKeyboardVisible (false);
-						}
-					};
-				editDialog.getContentTable().add (table);
-				editDialog.button ("OK", "ok");
-				editDialog.button ("Cancel", "cancel");
-                editDialog.scaleBy (.2f);
-                editDialog.show (stage).setX (25f);
-				stage.setKeyboardFocus (firstTextField);
-				}
-			});
-		button4.setPosition (84, 40);
-		stage.addActor (button4);
-
-		// create the "Save GAme" button
-		final TextButton button5 = new TextButton ("Save\nGame", skin, "default");
-		button5.setWidth (75);
-		button5.setHeight (40);
-		button5.addListener (new ClickListener() {
+		// create the "Save Game" button
+		button = new TextButton ("Save\nGame", skin, "default");
+		button.setWidth (75);
+		button.setHeight (40);
+		button.addListener (new ClickListener() {
             @Override
 			public void clicked (InputEvent event, float x, float y) {
                 // try to get external access if it hasn't already been granted
@@ -1008,10 +1125,58 @@ public class sudoku extends ApplicationAdapter {
 				stage.setKeyboardFocus (firstTextField);
 				}
 			});
-		button5.setPosition (4,40);
-		stage.addActor (button5);
+		button.setPosition (4,40);
+		stage.addActor (button);
 
-		appState = AppStates.INITIALIZED;
+        // create the "Load Game" button
+        button = new TextButton ("Load\nGame", skin, "default");
+        button.setWidth (75);
+        button.setHeight (40);
+        button.addListener (new ClickListener() {
+            @Override
+            public void clicked (InputEvent event, float x, float y) {
+                // try to get external access if it hasn't already been granted
+                systemAccess.RequestExternalAccess();
+                firstTextField = new TextField ("", skin);
+                Table table = new Table (skin);
+                table.add ("File Pathname ").align (Align.right);
+                table.add (firstTextField);
+                Dialog editDialog = new Dialog ("Load Game", skin) {
+                    protected void result(Object object) {
+                        if (object.equals ("ok"))
+                            loadGame();
+                        Gdx.input.setOnscreenKeyboardVisible (false);
+                    }
+                };
+                editDialog.getContentTable().add (table);
+                editDialog.button ("OK", "ok");
+                editDialog.button ("Cancel", "cancel");
+                editDialog.scaleBy (.2f);
+                editDialog.show (stage).setX (25f);
+                stage.setKeyboardFocus (firstTextField);
+            }
+        });
+        button.setPosition (84, 40);
+        stage.addActor (button);
+
+        // create the "Debug Mode" button
+        final TextButton b = new TextButton ("Debug\nMode", skin, "default");
+        b.setWidth (75);
+        b.setHeight (40);
+        b.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (getTapCount() == 2)
+                    setDebugMode(b, true);
+                else
+                    setDebugMode(b, false);
+                }
+            });
+        b.setPosition(164, 40);
+        stage.addActor (b);
+
+
+        appState = AppStates.INITIALIZED;
         Gdx.input.setInputProcessor (inputMultiplexer);
 		}
 
